@@ -45,6 +45,11 @@ export class MondoParser {
   }
   // takes code string, returns list of matched tokens (if valid)
   tokenize(code, offset = 0) {
+    code = code.trim();
+    // multilinebreak -> stack
+    code = code.replaceAll(/(\r?\n){2,}/g, ',');
+    // single line break -> pipe
+    code = code.replaceAll('\n', ' # ');
     let tokens = [];
     let locEnabled = offset !== -1;
     let trim = () => {
