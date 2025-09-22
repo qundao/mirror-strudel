@@ -4,6 +4,8 @@
 
 import OLAProcessor from './ola-processor';
 import FFT from './fft.js';
+import * as ugens from '@kabelsalat/lib/src/ugens.js';
+const UGENS = new Map(Object.entries(ugens));
 
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 const _mod = (n, m) => ((n % m) + m) % m;
@@ -955,3 +957,68 @@ class MeterProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor('meter-processor', MeterProcessor);
+
+class GenericProcessor extends AudioWorkletProcessor{
+  constructor(){
+    super();
+    this.playPos = 0;
+    const channels = 16;
+    this.outputs = new Array(channels).fill(0);
+    this.sources = new Array(channels).fill(0);
+    this.gateEnded = false;
+    this.port.onmessage = (event) => {
+      let { src, schema: { ugens, registers }, gate, start, end } = event.data;
+      this.start = start;
+      this.end = end;
+      this.registers = new Array(registers).fill(0);
+      this.src = `o.fill(0); // reset outputs\n${src}`;
+      this.nodes = [];
+      for (let i = 0; i < ugens.length; i++) {
+        const ugen = ugens[i];
+        const nodeClass = UGENS.get(ugen.type);
+        const node = new nodeClass(i, ugen, sampleRate);
+        if (node.type === 'cc' && ugen.inputs?.[0]?.includes('strudel-gate')) {
+          node.setValue(1);
+          this.gateNode = node;
+        }
+        this.nodes[i] = node;
+      }
+      this.genSample = new Function(
+        "time",
+        "nodes",
+        "input",
+        "r", // registers
+        "o", // outputs
+        "s", // sources
+        this.src
+      );
+    };
+  }
+  process(inputs, outputs){
+    if (this.genSample === undefined || currentTime < this.start) {
+      return true;
+    }
+    if (!this.gateEnded && currentTime > this.end) {
+      this.gateNode?.setValue(0);
+      this.gateEnded = true;
+    }
+    const outL = outputs[0][0];
+    const outR = outputs[0][1] ?? outputs[0][0];
+    const input = inputs[0]?.[0];
+    for(let n = 0; n < blockSize; n++) {
+      this.genSample(
+        this.playPos,
+        this.nodes,
+        input ? input[n] : 0,
+        this.registers,
+        this.outputs,
+        this.sources,
+      );
+      outL[n] = this.outputs[0];
+      outR[n] = this.outputs[1];
+      this.playPos += 1 / sampleRate;
+    }
+    return true;
+  }
+}
+registerProcessor("generic-processor", GenericProcessor);

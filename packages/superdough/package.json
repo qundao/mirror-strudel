@@ -36,6 +36,7 @@
     "vite-plugin-bundle-audioworklet": "workspace:*"
   },
   "dependencies": {
+    "@kabelsalat/lib": "link:../../../kabelsalat/packages/lib",
     "nanostores": "^0.11.3"
   }
 }

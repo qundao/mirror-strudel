@@ -7,7 +7,7 @@ This program is free software: you can redistribute it and/or modify it under th
 import './feedbackdelay.mjs';
 import './reverb.mjs';
 import './vowel.mjs';
-import { clamp, nanFallback, _mod, cycleToSeconds, secondsToCycle } from './util.mjs';
+import { clamp, nanFallback, _mod, cycleToSeconds, secondsToCycle, getFrequencyFromValue } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
 import { createFilter, gainNode, getCompressor, getWorklet, webAudioTimeout } from './helpers.mjs';
 import { map } from 'nanostores';
@@ -688,6 +688,8 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   } else if (getSound(s)) {
     const { onTrigger } = getSound(s);
     const onEnded = () => {
+      // audioNodes.forEach((n) => n?.disconnect());
+      debugger;
       earlyNodes.forEach((n) => n?.disconnect());
       disconnectNodeWhenQuiet(ac, finalDryNode, audioNodes);
       activeSoundSources.delete(chainID);
@@ -873,6 +875,17 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     if (fx.phaserrate !== undefined && phaserdepth > 0) {
       const phaserFX = getPhaser(t, endWithRelease, fx.phaserrate, phaserdepth, fx.phasercenter, fx.phasersweep);
       chain.push(phaserFX);
+    }
+    if (fx.workletSrc !== undefined) {
+      const workletNode = getWorklet(ac, 'generic-processor', {});
+      earlyNodes = [...chain];
+      chain.push(workletNode);
+      let workletSrc = fx.workletSrc;
+      workletSrc = workletSrc.replace(/\bpat\[(\d+)\]/g, (_, i) => fx.workletInputs[i]);
+      workletSrc = workletSrc.replaceAll('sFreq', getFrequencyFromValue(value));
+      workletSrc = workletSrc.replaceAll('sGate', `cc('strudel-gate-${chainID}')`);
+      const { src, ugens, registers } = compileKabel(workletSrc);
+      workletNode.port.postMessage({ src, schema: { ugens, registers }, start: t, end });
     }
     let dry = chain[chain.length - 1];
     // delay

@@ -3561,3 +3561,23 @@ Pattern.prototype.FX = function (...effects) {
     });
   });
 };
+
+/**
+ * Creates a worklet effect. Typically derived by writing K(...) in the REPL which will parse
+ * Kabelsalat code.
+ *
+ * @name worklet
+ * @param {string} src Source code of the worklet update function
+ * @param {...number | ...Pattern} inputs Worklet inputs
+ * @memberof Pattern
+ * @returns Pattern
+ */
+Pattern.prototype.worklet = function (src, ...inputs) {
+  inputs = inputs.map(reify);
+  return this.outerBind((v) => {
+    return _asArrayPattern(inputs).withValue((vInput) => {
+      const currInputs = v.workletInputs ?? [];
+      return { ...v, workletSrc: src, workletInputs: currInputs.concat(vInput) };
+    });
+  });
+};

@@ -1,4 +1,4 @@
-import { clamp, midiToFreq, noteToMidi } from './util.mjs';
+import { clamp, getFrequencyFromValue} from './util.mjs';
 import { registerSound, getAudioContext, soundMap, getLfo } from './superdough.mjs';
 import {
   applyFM,
@@ -13,19 +13,6 @@ import {
 } from './helpers.mjs';
 import { getNoiseMix, getNoiseOscillator } from './noise.mjs';
 
-const getFrequencyFromValue = (value, defaultNote = 36) => {
-  let { note, freq } = value;
-  note = note || defaultNote;
-  if (typeof note === 'string') {
-    note = noteToMidi(note); // e.g. c3 => 48
-  }
-  // get frequency
-  if (!freq && typeof note === 'number') {
-    freq = midiToFreq(note); // + 48);
-  }
-
-  return Number(freq);
-};
 function destroyAudioWorkletNode(node) {
   if (node == null) {
     return;

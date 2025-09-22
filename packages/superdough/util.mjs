@@ -76,3 +76,17 @@ export function cycleToSeconds(cycle, cps) {
 export function secondsToCycle(t, cps) {
   return t * cps;
 }
+
+export const getFrequencyFromValue = (value, defaultNote = 36) => {
+  let { note, freq } = value;
+  note = note || defaultNote;
+  if (typeof note === 'string') {
+    note = noteToMidi(note); // e.g. c3 => 48
+  }
+  // get frequency
+  if (!freq && typeof note === 'number') {
+    freq = midiToFreq(note); // + 48);
+  }
+
+  return Number(freq);
+};
