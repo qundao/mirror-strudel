@@ -636,6 +636,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     analyze, // analyser wet
     fft = getDefaultValue('fft'), // fftSize 0 - 10
     FX,
+    FXrelease,
   } = value;
 
   delaytime = delaytime ?? cycleToSeconds(delaysync, cps);
@@ -655,7 +656,9 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   delay = applyGainCurve(delay);
 
   const end = t + hapDuration;
-  const endWithRelease = end + release;
+  const fullRelease = Math.max(release, FXrelease ?? 0);
+  const endWithRelease = end + fullRelease;
+  value.release = fullRelease;
   const chainID = Math.round(Math.random() * 1000000);
 
   // oldest audio nodes will be destroyed if maximum polyphony is exceeded
@@ -687,14 +690,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     sourceNode = source(t, value, hapDuration, cps);
   } else if (getSound(s)) {
     const { onTrigger } = getSound(s);
-    const onEnded = () => {
-      // audioNodes.forEach((n) => n?.disconnect());
-      debugger;
-      earlyNodes.forEach((n) => n?.disconnect());
-      disconnectNodeWhenQuiet(ac, finalDryNode, audioNodes);
-      activeSoundSources.delete(chainID);
-    };
-    const soundHandle = await onTrigger(t, value, onEnded);
+    const soundHandle = await onTrigger(t, value, () => void 0);
 
     if (soundHandle) {
       sourceNode = soundHandle.node;
@@ -881,9 +877,11 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       earlyNodes = [...chain];
       chain.push(workletNode);
       let workletSrc = fx.workletSrc;
-      workletSrc = workletSrc.replace(/\bpat\[(\d+)\]/g, (_, i) => fx.workletInputs[i]);
-      workletSrc = workletSrc.replaceAll('sFreq', getFrequencyFromValue(value));
-      workletSrc = workletSrc.replaceAll('sGate', `cc('strudel-gate-${chainID}')`);
+      workletSrc = workletSrc
+        .replace(/\bpat\[(\d+)\]/g, (_, i) => fx.workletInputs[i])
+        .replaceAll('sFreq', getFrequencyFromValue(value))
+        .replaceAll('sGate', `cc('strudel-gate-${chainID}')`);
+      /* global compileKabel */
       const { src, ugens, registers } = compileKabel(workletSrc);
       workletNode.port.postMessage({ src, schema: { ugens, registers }, start: t, end });
     }
@@ -933,6 +931,13 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       chain.push(sum);
       audioNodes.push(dryReverb, reverbNode, wetReverb);
     }
+  }
+  const useFXRelease = FXrelease !== undefined && FXrelease > release;
+  if (useFXRelease) {
+    const releaseNode = gainNode(1);
+    releaseNode.gain.setValueAtTime(1, end + release);
+    releaseNode.gain.linearRampToValueAtTime(0, endWithRelease);
+    chain.push(releaseNode);
   }
 
   // last gain
@@ -986,8 +991,20 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   // connect chain elements together
   chain.slice(1).reduce((last, current) => last.connect(current), chain[0]);
   audioNodes.push(...chain);
-  earlyNodes = earlyNodes.length > 0 ? earlyNodes : audioNodes;
-  audioNodes = audioNodes.filter((n) => earlyNodes.includes(n));
+  // earlyNodes = [];
+  earlyNodes = earlyNodes.length > 0 && !useFXRelease ? earlyNodes : audioNodes;
+  audioNodes = audioNodes.filter((n) => !earlyNodes.includes(n));
+  webAudioTimeout(
+    ac,
+    () => {
+      // audioNodes.forEach((n) => n?.disconnect());
+      // earlyNodes.forEach((n) => n?.disconnect());
+      disconnectNodeWhenQuiet(ac, finalDryNode, audioNodes);
+      activeSoundSources.delete(chainID);
+    },
+    0,
+    endWithRelease,
+  );
 };
 
 export const superdoughTrigger = (t, hap, ct, cps) => {

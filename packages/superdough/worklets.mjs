@@ -958,16 +958,23 @@ class MeterProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('meter-processor', MeterProcessor);
 
-class GenericProcessor extends AudioWorkletProcessor{
-  constructor(){
+class GenericProcessor extends AudioWorkletProcessor {
+  constructor() {
     super();
     this.playPos = 0;
     const channels = 16;
     this.outputs = new Array(channels).fill(0);
     this.sources = new Array(channels).fill(0);
     this.gateEnded = false;
+    this.started = false;
     this.port.onmessage = (event) => {
-      let { src, schema: { ugens, registers }, gate, start, end } = event.data;
+      let {
+        src,
+        schema: { ugens, registers },
+        gate,
+        start,
+        end,
+      } = event.data;
       this.start = start;
       this.end = end;
       this.registers = new Array(registers).fill(0);
@@ -984,36 +991,35 @@ class GenericProcessor extends AudioWorkletProcessor{
         this.nodes[i] = node;
       }
       this.genSample = new Function(
-        "time",
-        "nodes",
-        "input",
-        "r", // registers
-        "o", // outputs
-        "s", // sources
-        this.src
+        'time',
+        'nodes',
+        'input',
+        'r', // registers
+        'o', // outputs
+        's', // sources
+        this.src,
       );
     };
   }
-  process(inputs, outputs){
+  process(inputs, outputs) {
+    const input = inputs[0]?.[0];
     if (this.genSample === undefined || currentTime < this.start) {
+      // pending
       return true;
+    } else if (input === undefined) {
+      // if no input and started, return false and close worklet
+      // else just keep waiting (true)
+      return !this.started;
     }
+    this.started = true;
     if (!this.gateEnded && currentTime > this.end) {
       this.gateNode?.setValue(0);
       this.gateEnded = true;
     }
     const outL = outputs[0][0];
     const outR = outputs[0][1] ?? outputs[0][0];
-    const input = inputs[0]?.[0];
-    for(let n = 0; n < blockSize; n++) {
-      this.genSample(
-        this.playPos,
-        this.nodes,
-        input ? input[n] : 0,
-        this.registers,
-        this.outputs,
-        this.sources,
-      );
+    for (let n = 0; n < blockSize; n++) {
+      this.genSample(this.playPos, this.nodes, input ? input[n] : 0, this.registers, this.outputs, this.sources);
       outL[n] = this.outputs[0];
       outR[n] = this.outputs[1];
       this.playPos += 1 / sampleRate;
@@ -1021,4 +1027,4 @@ class GenericProcessor extends AudioWorkletProcessor{
     return true;
   }
 }
-registerProcessor("generic-processor", GenericProcessor);
+registerProcessor('generic-processor', GenericProcessor);

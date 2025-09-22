@@ -5,7 +5,7 @@ import { errorLogger, logger } from './logger.mjs';
 import { setTime } from './time.mjs';
 import { evalScope } from './evaluate.mjs';
 import { register, Pattern, isPattern, silence, stack } from './pattern.mjs';
-import { SalatRepl } from "@kabelsalat/web";
+import { SalatRepl } from '@kabelsalat/web';
 
 export function repl({
   defaultOutput,
