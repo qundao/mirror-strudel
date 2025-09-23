@@ -3581,3 +3581,5 @@ Pattern.prototype.worklet = function (src, ...inputs) {
     });
   });
 };
+
+export const worklet = (...args) => pure(0).worklet(...args);

@@ -185,7 +185,7 @@ export function registerSynthSounds() {
         destroyAudioWorkletNode(o);
         fm?.stop();
         vibratoOscillator?.stop();
-      }
+      };
       return {
         node,
         cleanup,
@@ -250,7 +250,7 @@ export function registerSynthSounds() {
 
       const cleanup = () => {
         destroyAudioWorkletNode(o);
-      }
+      };
 
       return {
         node,
@@ -318,7 +318,7 @@ export function registerSynthSounds() {
         destroyAudioWorkletNode(lfo);
         fm?.stop();
         vibratoOscillator?.stop();
-      }
+      };
       return {
         node,
         cleanup,
@@ -356,7 +356,7 @@ export function registerSynthSounds() {
         const cleanup = () => {
           g.disconnect();
           o.disconnect();
-        }
+        };
         return {
           node,
           cleanup,

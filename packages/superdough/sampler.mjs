@@ -344,7 +344,7 @@ export async function onTriggerSample(t, value, onended, bank, resolveUrl) {
     bufferSource.disconnect();
     vibratoOscillator?.stop();
     node.disconnect();
-  }
+  };
   const handle = { node: out, cleanup };
 
   // cut groups

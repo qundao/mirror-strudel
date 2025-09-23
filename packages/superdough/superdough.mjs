@@ -394,7 +394,8 @@ function getPhaser(time, end, frequency = 1, depth = 0.5, centerFrequency = 1000
   const numStages = 8; // num of filters in series
   let fOffset = 0;
   const filterChain = [];
-  const fMin = centerFrequency * 0.5, fMax = centerFrequency;
+  const fMin = centerFrequency * 0.5,
+    fMax = centerFrequency;
   const ratio = Math.pow(fMax / fMin, 1 / numStages);
   for (let i = 0; i < numStages; i++) {
     const filter = ac.createBiquadFilter();
@@ -860,7 +861,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       cleanup = () => {
         phaserFX.disconnect();
         dry.disconnect();
-      }
+      };
       chain.push({ input: dry, output: mix, cleanup });
     }
     if (fx.workletSrc !== undefined) {
@@ -889,7 +890,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
         delayNode.disconnect();
         dry.disconnect();
         wetDelay.disconnect();
-      }
+      };
       chain.push({ input: dry, output: sum, cleanup });
     }
     // reverb
@@ -925,7 +926,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
         reverbNode.disconnect();
         dry.disconnect();
         wetReverb.disconnect();
-      }
+      };
       chain.push({ input: dry, output: sum, cleanup });
     }
   }
