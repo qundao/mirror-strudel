@@ -80,12 +80,8 @@ export function registerZZFXSounds() {
   ['zzfx', 'z_sine', 'z_sawtooth', 'z_triangle', 'z_square', 'z_tan', 'z_noise'].forEach((wave) => {
     registerSound(
       wave,
-      (t, value, onended) => {
+      (t, value) => {
         const { node: o } = getZZFX({ s: wave, ...value }, t);
-        o.onended = () => {
-          o.disconnect();
-          onended();
-        };
         return {
           node: o,
           stop: () => {},

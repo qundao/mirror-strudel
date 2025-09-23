@@ -390,19 +390,21 @@ function getPhaser(time, end, frequency = 1, depth = 0.5, centerFrequency = 1000
   const ac = getAudioContext();
   const lfoGain = getLfo(ac, time, end, { frequency, depth: sweep * 2 });
 
-  //filters
-  const numStages = 2; //num of filters in series
+  // filters
+  const numStages = 8; // num of filters in series
   let fOffset = 0;
   const filterChain = [];
+  const fMin = centerFrequency * 0.5, fMax = centerFrequency;
+  const ratio = Math.pow(fMax / fMin, 1 / numStages);
   for (let i = 0; i < numStages; i++) {
     const filter = ac.createBiquadFilter();
-    filter.type = 'notch';
+    filter.type = 'allpass';
     filter.gain.value = 1;
-    filter.frequency.value = centerFrequency + fOffset;
-    filter.Q.value = 2 - Math.min(Math.max(depth * 2, 0), 1.9);
+    filter.frequency.value = fMin * Math.pow(ratio, i + 0.5);
+    filter.Q.value = 2 - clamp(depth * 2, 0, 1.9);
 
     lfoGain.connect(filter.detune);
-    fOffset += 282;
+    fOffset += 4;
     if (i > 0) {
       filterChain[i - 1].connect(filter);
     }
@@ -560,26 +562,6 @@ function mapChannelNumbers(channels) {
   return (Array.isArray(channels) ? channels : [channels]).map((ch) => ch - 1);
 }
 
-let counter = 0;
-const livingNodes = {};
-function disconnectNodeWhenQuiet(ac, node, dependentNodes) {
-  const meter = new AudioWorkletNode(ac, 'meter-processor');
-  const thisCounter = counter;
-  livingNodes[thisCounter] = dependentNodes;
-  counter += 1;
-  node.connect(meter);
-  let done = () => {
-    meter.disconnect();
-    meter.port.onmessage = null;
-    node.disconnect();
-    dependentNodes.forEach((n) => n?.disconnect());
-    delete livingNodes[thisCounter];
-  };
-  meter.port.onmessage = (e) => {
-    if (e.data?.quiet) done();
-  };
-}
-
 export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) => {
   // new: t is always expected to be the absolute target onset time
   const ac = getAudioContext();
@@ -673,8 +655,6 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
 
   let audioNodes = [];
-  let earlyNodes = [];
-  let finalDryNode;
 
   if (['-', '~', '_'].includes(s)) {
     return;
@@ -685,7 +665,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
 
   // get source AudioNode
-  let sourceNode;
+  let sourceNode, cleanup;
   if (source) {
     sourceNode = source(t, value, hapDuration, cps);
   } else if (getSound(s)) {
@@ -694,6 +674,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
 
     if (soundHandle) {
       sourceNode = soundHandle.node;
+      cleanup = soundHandle.cleanup;
       activeSoundSources.set(chainID, soundHandle);
     }
   } else {
@@ -710,7 +691,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     return;
   }
   const chain = []; // audio nodes that will be connected to each other sequentially
-  chain.push(sourceNode);
+  chain.push({ input: sourceNode, output: sourceNode, cleanup });
   FX = FX ? FX : [value]; // default to using the top-level values if FX is not specified
   for (const fx of FX) {
     let {
@@ -869,15 +850,23 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     }
     // phaser
     if (fx.phaserrate !== undefined && phaserdepth > 0) {
+      const dry = gainNode(1);
       const phaserFX = getPhaser(t, endWithRelease, fx.phaserrate, phaserdepth, fx.phasercenter, fx.phasersweep);
-      chain.push(phaserFX);
+      const fb = gainNode(fx.phaserFeedback ?? 0.4);
+      const mix = gainNode(0.5);
+      dry.connect(mix);
+      dry.connect(phaserFX).connect(mix);
+      mix.connect(fb).connect(phaserFX);
+      cleanup = () => {
+        phaserFX.disconnect();
+        dry.disconnect();
+      }
+      chain.push({ input: dry, output: mix, cleanup });
     }
     if (fx.workletSrc !== undefined) {
       const workletNode = getWorklet(ac, 'generic-processor', {});
-      earlyNodes = [...chain];
       chain.push(workletNode);
-      let workletSrc = fx.workletSrc;
-      workletSrc = workletSrc
+      const workletSrc = fx.workletSrc
         .replace(/\bpat\[(\d+)\]/g, (_, i) => fx.workletInputs[i])
         .replaceAll('sFreq', getFrequencyFromValue(value))
         .replaceAll('sGate', `cc('strudel-gate-${chainID}')`);
@@ -885,9 +874,9 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       const { src, ugens, registers } = compileKabel(workletSrc);
       workletNode.port.postMessage({ src, schema: { ugens, registers }, start: t, end });
     }
-    let dry = chain[chain.length - 1];
     // delay
     if (delay > 0 && delaytime > 0 && delayfeedback > 0) {
+      const dry = gainNode(1);
       delayfeedback = clamp(delayfeedback, 0, 0.98);
       const delayNode = ac.createFeedbackDelay(1, delaytime, delayfeedback);
       const wetDelay = gainNode(delay);
@@ -895,11 +884,14 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       const sum = new GainNode(ac, { gain: 1, channelCount: 2, channelCountMode: 'explicit' });
       dry.connect(dryDelay).connect(sum);
       dry.connect(delayNode).connect(wetDelay).connect(sum);
-      earlyNodes = [...chain];
-      chain.push(sum);
-      audioNodes.push(dryDelay, delayNode, wetDelay);
+      const cleanup = () => {
+        dryDelay.disconnect();
+        delayNode.disconnect();
+        dry.disconnect();
+        wetDelay.disconnect();
+      }
+      chain.push({ input: dry, output: sum, cleanup });
     }
-    dry = chain[chain.length - 1];
     // reverb
     if (fx.room > 0) {
       let roomIR;
@@ -913,6 +905,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
         }
         roomIR = await loadBuffer(url, ac, fx.ir, 0);
       }
+      const dry = gainNode(1);
       const reverbNode = ac.createReverb(
         fx.roomsize,
         fx.roomfade,
@@ -927,13 +920,16 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       const sum = new GainNode(ac, { gain: 1, channelCount: 2, channelCountMode: 'explicit' });
       dry.connect(dryReverb).connect(sum);
       dry.connect(reverbNode).connect(wetReverb).connect(sum);
-      earlyNodes = [...chain];
-      chain.push(sum);
-      audioNodes.push(dryReverb, reverbNode, wetReverb);
+      const cleanup = () => {
+        dryReverb.disconnect();
+        reverbNode.disconnect();
+        dry.disconnect();
+        wetReverb.disconnect();
+      }
+      chain.push({ input: dry, output: sum, cleanup });
     }
   }
-  const useFXRelease = FXrelease !== undefined && FXrelease > release;
-  if (useFXRelease) {
+  if (FXrelease !== undefined && FXrelease > release) {
     const releaseNode = gainNode(1);
     releaseNode.gain.setValueAtTime(1, end + release);
     releaseNode.gain.linearRampToValueAtTime(0, endWithRelease);
@@ -982,24 +978,26 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     const dryGain = new GainNode(ac, { gain: dry });
     chain.push(dryGain);
     connectToOrbit(dryGain, orbit);
-    finalDryNode = dryGain;
   } else {
     connectToOrbit(post, orbit);
-    finalDryNode = post;
   }
 
   // connect chain elements together
-  chain.slice(1).reduce((last, current) => last.connect(current), chain[0]);
+  chain.slice(1).reduce((last, current) => {
+    const lastC = last.output ?? last;
+    const currentC = current.input ?? current;
+    lastC.connect(currentC);
+    return current.output ?? current;
+  }, chain[0]);
   audioNodes.push(...chain);
-  // earlyNodes = [];
-  earlyNodes = earlyNodes.length > 0 && !useFXRelease ? earlyNodes : audioNodes;
-  audioNodes = audioNodes.filter((n) => !earlyNodes.includes(n));
   webAudioTimeout(
     ac,
     () => {
-      // audioNodes.forEach((n) => n?.disconnect());
-      // earlyNodes.forEach((n) => n?.disconnect());
-      disconnectNodeWhenQuiet(ac, finalDryNode, audioNodes);
+      audioNodes.forEach((n) => {
+        const node = n?.output ?? n;
+        node?.disconnect();
+        n?.cleanup?.();
+      });
       activeSoundSources.delete(chainID);
     },
     0,

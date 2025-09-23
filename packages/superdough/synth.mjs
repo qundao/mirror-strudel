@@ -13,6 +13,14 @@ import {
 } from './helpers.mjs';
 import { getNoiseMix, getNoiseOscillator } from './noise.mjs';
 
+function destroyAudioWorkletNode(node) {
+  if (node == null) {
+    return;
+  }
+  node.disconnect();
+  node.parameters.get('end')?.setValueAtTime(0, 0);
+}
+
 const waveforms = ['triangle', 'square', 'sawtooth', 'sine'];
 const waveformAliases = [
   ['tri', 'triangle'],
@@ -51,6 +59,11 @@ export function registerSynthSounds() {
 
         const { duration } = value;
 
+        const cleanup = () => {
+          o.disconnect();
+          g.disconnect();
+        };
+
         const envGain = gainNode(1);
         let node = o.connect(g).connect(envGain);
         const holdEnd = t + duration;
@@ -58,6 +71,7 @@ export function registerSynthSounds() {
         const envEnd = holdEnd + release + 0.01;
         return {
           node,
+          cleanup,
         };
       },
       { type: 'synth', prebake: true },
@@ -96,6 +110,14 @@ export function registerSynthSounds() {
 
       const mix = gainNode(mixGain);
 
+      const cleanup = () => {
+        o.disconnect();
+        g.disconnect();
+        sat.disconnect();
+        noise.node.disconnect();
+        noiseGain.disconnect();
+      };
+
       const node = o.connect(sat).connect(g).connect(mix);
       noise.node.connect(noiseGain).connect(mix);
 
@@ -111,6 +133,7 @@ export function registerSynthSounds() {
 
       return {
         node,
+        cleanup,
       };
     },
     { type: 'synth', prebake: true },
@@ -154,13 +177,18 @@ export function registerSynthSounds() {
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);
       const vibratoOscillator = getVibratoOscillator(o.parameters.get('detune'), value, begin);
       const fm = applyFM(o.parameters.get('frequency'), value, begin);
-      let envGain = gainNode(1);
-      envGain = o.connect(envGain);
+      const node = o.connect(gainNode(1));
 
-      getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
+      getParamADSR(node.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
 
+      const cleanup = () => {
+        destroyAudioWorkletNode(o);
+        fm?.stop();
+        vibratoOscillator?.stop();
+      }
       return {
-        node: envGain,
+        node,
+        cleanup,
       };
     },
     { prebake: true, type: 'synth' },
@@ -216,13 +244,17 @@ export function registerSynthSounds() {
 
       o.port.postMessage({ codeText: byteBeatExpression, byteBeatStartTime, frequency });
 
-      let envGain = gainNode(1);
-      envGain = o.connect(envGain);
+      const node = o.connect(gainNode(1));
 
-      getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
+      getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
+
+      const cleanup = () => {
+        destroyAudioWorkletNode(o);
+      }
 
       return {
-        node: envGain,
+        node,
+        cleanup,
       };
     },
     { prebake: true, type: 'synth' },
@@ -272,18 +304,24 @@ export function registerSynthSounds() {
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);
       const vibratoOscillator = getVibratoOscillator(o.parameters.get('detune'), value, begin);
       const fm = applyFM(o.parameters.get('frequency'), value, begin);
-      let envGain = gainNode(1);
-      envGain = o.connect(envGain);
+      const node = o.connect(gainNode(1));
 
-      getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
+      getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
       let lfo;
       if (pwsweep != 0) {
         lfo = getLfo(ac, begin, end, { frequency: pwrate, depth: pwsweep });
         lfo.connect(o.parameters.get('pulsewidth'));
       }
 
+      const cleanup = () => {
+        destroyAudioWorkletNode(o);
+        destroyAudioWorkletNode(lfo);
+        fm?.stop();
+        vibratoOscillator?.stop();
+      }
       return {
-        node: envGain,
+        node,
+        cleanup,
       };
     },
     { prebake: true, type: 'synth' },
@@ -315,9 +353,13 @@ export function registerSynthSounds() {
         let node = o.connect(g).connect(envGain);
         const holdEnd = t + duration;
         getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
-        const envEnd = holdEnd + release + 0.01;
+        const cleanup = () => {
+          g.disconnect();
+          o.disconnect();
+        }
         return {
           node,
+          cleanup,
         };
       },
       { type: 'synth', prebake: true },

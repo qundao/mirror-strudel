@@ -220,16 +220,8 @@ export function webAudioTimeout(audioContext, onComplete, startTime, stopTime) {
   // Schedule the `onComplete` callback to occur at `stopTime`
   constantNode.onended = () => {
     // Ensure garbage collection
-    try {
-      zeroGain.disconnect();
-    } catch {
-      // pass
-    }
-    try {
-      constantNode.disconnect();
-    } catch {
-      // pass
-    }
+    constantNode.disconnect();
+    zeroGain.disconnect();
     onComplete();
   };
   constantNode.start(startTime);

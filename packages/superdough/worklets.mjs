@@ -910,54 +910,6 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
 
 registerProcessor('byte-beat-processor', ByteBeatProcessor);
 
-class MeterProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.threshold = 1e-2;
-    this.holdMs = 40;
-    this.belowSince = null;
-    this.initialized = currentTime * 1000;
-    this.finished = false;
-  }
-  process(inputs) {
-    if (this.finished) return true;
-    const now = currentTime * 1000;
-    const chs = inputs[0] || [];
-    const N = chs[0]?.length || 0;
-    if (!N) {
-      if (now - this.initialized >= this.holdMs) {
-        this.port.postMessage({ quiet: true });
-        this.finished = true;
-      }
-      return true;
-    }
-
-    let sum = 0,
-      count = 0;
-    for (let c = 0; c < chs.length; c++) {
-      const x = chs[c];
-      for (let i = 0; i < N; i++) {
-        const v = x[i];
-        sum += v * v;
-      }
-      count += N;
-    }
-    const rms = Math.sqrt(sum / Math.max(1, count));
-
-    if (rms < this.threshold) {
-      if (this.belowSince == null) this.belowSince = now;
-      if (now - this.belowSince >= this.holdMs) {
-        this.port.postMessage({ quiet: true });
-        this.finished = true;
-      }
-    } else {
-      this.belowSince = null;
-    }
-    return true;
-  }
-}
-registerProcessor('meter-processor', MeterProcessor);
-
 class GenericProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -971,7 +923,6 @@ class GenericProcessor extends AudioWorkletProcessor {
       let {
         src,
         schema: { ugens, registers },
-        gate,
         start,
         end,
       } = event.data;
