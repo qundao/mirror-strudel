@@ -152,9 +152,9 @@ export function repl({
         // allows muting a pattern x with x_ or _x
         return silence;
       }
-      if (id === '$') {
+      if (id.includes('$')) {
         // allows adding anonymous patterns with $:
-        id = `$${anonymousIndex}`;
+        id = `${id}${anonymousIndex}`;
         anonymousIndex++;
       }
       pPatterns[id] = this;
@@ -215,6 +215,13 @@ export function repl({
       let { pattern, meta } = await _evaluate(code, transpiler, transpilerOptions);
       if (Object.keys(pPatterns).length) {
         let patterns = Object.values(pPatterns);
+
+        // if there are solo patterns, only use those
+        const soloPatterns = Object.entries(pPatterns).filter(([key]) => key.length > 1 && key.startsWith('S'));
+        if (soloPatterns.length) {
+          patterns = Object.values(Object.fromEntries(soloPatterns));
+        }
+
         if (eachTransform) {
           // Explicit lambda so only element (not index and array) are passed
           patterns = patterns.map((x) => eachTransform(x));
