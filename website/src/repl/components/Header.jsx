@@ -47,12 +47,12 @@ export function Header({ context, embedded = false }) {
               }
             }}
           >
-            <span className="block text-foreground rotate-90">꩜</span>
+            <span className="block text-foreground ">*</span>
           </div>
           {!isZen && (
             <div className="space-x-2">
-              <span className="">strudel</span>
-              <span className="text-sm font-medium">REPL</span>
+              <span className="">Switch Angel</span>
+              <span className="text-sm font-medium"></span>
               {!isEmbedded && isButtonRowHidden && (
                 <a href={`${baseNoTrailing}/learn`} className="text-sm opacity-25 font-medium">
                   DOCS
@@ -82,47 +82,7 @@ export function Header({ context, embedded = false }) {
               <>loading...</>
             )}
           </button>
-          <button
-            onClick={handleEvaluate}
-            title="update"
-            className={cx(
-              'flex items-center space-x-1',
-              !isEmbedded ? 'p-2' : 'px-2',
-              !isDirty || !activeCode ? 'opacity-50' : 'hover:opacity-50',
-            )}
-          >
-            {!isEmbedded && <span>update</span>}
-          </button>
-          {/* !isEmbedded && (
-            <button
-              title="shuffle"
-              className="hover:opacity-50 p-2 flex items-center space-x-1"
-              onClick={handleShuffle}
-            >
-              <span> shuffle</span>
-            </button>
-          ) */}
-          {!isEmbedded && (
-            <button
-              title="share"
-              className={cx(
-                'cursor-pointer hover:opacity-50 flex items-center space-x-1',
-                !isEmbedded ? 'p-2' : 'px-2',
-              )}
-              onClick={handleShare}
-            >
-              <span>share</span>
-            </button>
-          )}
-          {!isEmbedded && (
-            <a
-              title="learn"
-              href={`${baseNoTrailing}/workshop/getting-started/`}
-              className={cx('hover:opacity-50 flex items-center space-x-1', !isEmbedded ? 'p-2' : 'px-2')}
-            >
-              <span>learn</span>
-            </a>
-          )}
+      
           {/* {isEmbedded && (
             <button className={cx('hover:opacity-50 px-2')}>
               <a href={window.location.href} target="_blank" rel="noopener noreferrer" title="Open in REPL">

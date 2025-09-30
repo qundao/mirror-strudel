@@ -36,6 +36,7 @@ import { getRandomTune, initCode, loadModules, shareCode } from './util.mjs';
 import './Repl.css';
 import { setInterval, clearInterval } from 'worker-timers';
 import { getMetadata } from '../metadata_parser';
+import jadeScriptsRaw from '../../../../../../switchangel/strudel-scripts/allscripts.js?raw'
 
 const { latestCode, maxPolyphony, audioDeviceName, multiChannelOrbits } = settingsMap.get();
 let modulesLoading, presets, drawContext, clearCanvas, audioReady;
@@ -142,6 +143,10 @@ export function useReplContext() {
         msg = `Default code has been loaded`;
       }
       editor.setCode(code);
+      // console.info(jadeScriptsRaw)
+      editor.repl.evaluate(jadeScriptsRaw)
+
+    
       setDocumentTitle(code);
       logger(`Welcome to Strudel! ${msg} Press play or hit ctrl+enter to run it!`, 'highlight');
     });
