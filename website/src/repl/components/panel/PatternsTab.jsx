@@ -12,8 +12,8 @@ import { useMemo } from 'react';
 import { getMetadata } from '../../../metadata_parser.js';
 import { useExamplePatterns } from '../../useExamplePatterns.jsx';
 import { parseJSON, isUdels } from '../../util.mjs';
-import { ButtonGroup } from './Forms.jsx';
-import { settingsMap, useSettings } from '../../../settings.mjs';
+import { useSettings } from '../../../settings.mjs';
+import { ActionButton } from '../button/action-button.jsx';
 import { Pagination } from '../pagination/Pagination.jsx';
 import { useState } from 'react';
 import { useDebounce } from '../usedebounce.jsx';
@@ -56,8 +56,8 @@ function PatternButtons({ patterns, activePattern, onClick, started }) {
   const viewingPatternData = parseJSON(viewingPatternStore);
   const viewingPatternID = viewingPatternData.id;
   return (
-    <div className="font-mono text-sm">
-      {Object.values(patterns ?? {})
+    <div className="">
+      {Object.values(patterns)
         .reverse()
         .map((pattern) => {
           const id = pattern.id;
@@ -72,15 +72,6 @@ function PatternButtons({ patterns, activePattern, onClick, started }) {
           );
         })}
     </div>
-  );
-}
-
-function ActionButton({ children, onClick, label, labelIsHidden }) {
-  return (
-    <button className="hover:opacity-50 text-nowrap" onClick={onClick} title={label}>
-      {labelIsHidden !== true && label}
-      {children}
-    </button>
   );
 }
 
@@ -125,7 +116,7 @@ function UserPatterns({ context }) {
             style={{ display: 'none' }}
             type="file"
             multiple
-            accept="text/plain,application/json"
+            accept="text/plain,text/x-markdown,application/json"
             onChange={(e) => importPatterns(e.target.files)}
           />
           import
@@ -142,21 +133,21 @@ function UserPatterns({ context }) {
       </div>
 
       <div className="overflow-auto h-full bg-background p-2 rounded-md">
-        {patternFilter === patternFilterName.user && (
-          <PatternButtons
-            onClick={(id) =>
-              updateCodeWindow(
-                context,
-                { ...userPatterns[id], collection: userPattern.collection },
-                autoResetPatternOnChange,
-              )
-            }
-            patterns={userPatterns}
-            started={context.started}
-            activePattern={activePattern}
-            viewingPatternID={viewingPatternID}
-          />
-        )}
+        {/* {patternFilter === patternFilterName.user && ( */}
+        <PatternButtons
+          onClick={(id) =>
+            updateCodeWindow(
+              context,
+              { ...userPatterns[id], collection: userPattern.collection },
+              autoResetPatternOnChange,
+            )
+          }
+          patterns={userPatterns}
+          started={context.started}
+          activePattern={activePattern}
+          viewingPatternID={viewingPatternID}
+        />
+        {/* )} */}
       </div>
     </div>
   );
@@ -251,6 +242,11 @@ export function PatternsTab({ context }) {
 
   return (
     <div className="px-4 w-full text-foreground  space-y-2  flex flex-col overflow-hidden max-h-full h-full">
+      <UserPatterns context={context} />
+    </div>
+  );
+  /* return (
+    <div className="px-4 w-full text-foreground  space-y-2  flex flex-col overflow-hidden max-h-full h-full">
       <ButtonGroup
         value={patternFilter}
         onChange={(value) => settingsMap.setKey('patternFilter', value)}
@@ -263,5 +259,5 @@ export function PatternsTab({ context }) {
         <PublicPatterns context={context} />
       )}
     </div>
-  );
+  ); */
 }

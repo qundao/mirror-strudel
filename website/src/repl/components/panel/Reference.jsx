@@ -2,9 +2,32 @@ import { useMemo, useState } from 'react';
 
 import jsdocJson from '../../../../../doc.json';
 import { Textbox } from '../textbox/Textbox';
-const availableFunctions = jsdocJson.docs
-  .filter(({ name, description }) => name && !name.startsWith('_') && !!description)
-  .sort((a, b) => /* a.meta.filename.localeCompare(b.meta.filename) +  */ a.name.localeCompare(b.name));
+
+const isValid = ({ name, description }) => name && !name.startsWith('_') && !!description;
+
+const availableFunctions = (() => {
+  const seen = new Set(); // avoid repetition
+  const functions = [];
+  for (const doc of jsdocJson.docs) {
+    if (!isValid(doc)) continue;
+    functions.push(doc);
+    const synonyms = doc.synonyms || [];
+    for (const s of synonyms) {
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      // Swap `doc.name` in for `s` in the list of synonyms
+      const synonymsWithDoc = [doc.name, ...synonyms].filter((x) => x && x !== s);
+      functions.push({
+        ...doc,
+        name: s, // update names for the synonym
+        longname: s,
+        synonyms: synonymsWithDoc,
+        synonyms_text: synonymsWithDoc.join(', '),
+      });
+    }
+  }
+  return functions.sort((a, b) => /* a.meta.filename.localeCompare(b.meta.filename) +  */ a.name.localeCompare(b.name));
+})();
 
 const getInnerText = (html) => {
   var div = document.createElement('div');
@@ -21,12 +44,16 @@ export function Reference() {
         return true;
       }
 
-      return entry.name.includes(search) || (entry.synonyms?.some((s) => s.includes(search)) ?? false);
+      const lowCaseSearch = search.toLowerCase();
+      return (
+        entry.name.toLowerCase().includes(lowCaseSearch) ||
+        (entry.synonyms?.some((s) => s.includes(lowCaseSearch)) ?? false)
+      );
     });
   }, [search]);
 
   return (
-    <div className="flex h-full w-full p-2 text-foreground overflow-hidden">
+    <div className="flex h-full w-full p-2 overflow-hidden">
       <div className="h-full  flex flex-col gap-2 w-1/3 max-w-72 ">
         <div class="w-full flex">
           <Textbox className="w-full" placeholder="Search" value={search} onChange={setSearch} />
@@ -35,7 +62,7 @@ export function Reference() {
           {visibleFunctions.map((entry, i) => (
             <a
               key={i}
-              className="cursor-pointer flex-none hover:bg-lineHighlight overflow-x-hidden  px-1 text-ellipsis"
+              className="cursor-pointer text-foreground flex-none hover:bg-lineHighlight overflow-x-hidden  px-1 text-ellipsis"
               onClick={() => {
                 const el = document.getElementById(`doc-${i}`);
                 const container = document.getElementById('reference-container');
@@ -70,12 +97,14 @@ export function Reference() {
               <ul>
                 {entry.params?.map(({ name, type, description }, i) => (
                   <li key={i}>
-                    {name} : {type.names?.join(' | ')} {description ? <> - {getInnerText(description)}</> : ''}
+                    {name} : {type?.names?.join(' | ')} {description ? <> - {getInnerText(description)}</> : ''}
                   </li>
                 ))}
               </ul>
               {entry.examples?.map((example, j) => (
-                <pre key={j}>{example}</pre>
+                <pre className="bg-background" key={j}>
+                  {example}
+                </pre>
               ))}
             </section>
           ))}

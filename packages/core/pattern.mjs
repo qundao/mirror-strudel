@@ -1,11 +1,11 @@
 /*
 pattern.mjs - Core pattern representation for strudel
-Copyright (C) 2025 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/core/pattern.mjs>
+Copyright (C) 2025 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/core/pattern.mjs>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 import TimeSpan from './timespan.mjs';
-import Fraction, { lcm } from './fraction.mjs';
+import Fraction, { isFraction, lcm } from './fraction.mjs';
 import Hap from './hap.mjs';
 import State from './state.mjs';
 import { unionWithObj } from './value.mjs';
@@ -21,6 +21,8 @@ import {
   numeralArgs,
   parseNumeral,
   pairs,
+  zipWith,
+  stringifyValues,
 } from './util.mjs';
 import drawLine from './drawLine.mjs';
 import { logger } from './logger.mjs';
@@ -852,14 +854,29 @@ export class Pattern {
     );
   }
 
-  log(func = (_, hap) => `[hap] ${hap.showWhole(true)}`, getData = (_, hap) => ({ hap })) {
+  /**
+   * Writes the content of the current event to the console (visible in the side menu).
+   * @name log
+   * @memberof Pattern
+   * @example
+   * s("bd sd").log()
+   */
+  log(func = (hap) => `[hap] ${hap.showWhole(true)}`, getData = (hap) => ({ hap })) {
     return this.onTrigger((...args) => {
       logger(func(...args), undefined, getData(...args));
     }, false);
   }
 
-  logValues(func = id) {
-    return this.log((_, hap) => func(hap.value));
+  /**
+   * A simplified version of `log` which writes all "values" (various configurable parameters)
+   * within the event to the console (visible in the side menu).
+   * @name logValues
+   * @memberof Pattern
+   * @example
+   * s("bd sd").gain("0.25 0.5 1").n("2 1 0").logValues()
+   */
+  logValues(func = (value) => `[hap] ${stringifyValues(value, true)}`) {
+    return this.log((hap) => func(hap.value));
   }
 
   //////////////////////////////////////////////////////////////////////
@@ -868,6 +885,31 @@ export class Pattern {
   drawLine() {
     console.log(drawLine(this));
     return this;
+  }
+
+  //////////////////////////////////////////////////////////////////////
+  // methods relating to breaking patterns into subcycles
+
+  // Breaks a pattern into a pattern of patterns, according to the structure of the given binary pattern.
+  unjoin(pieces, func = id) {
+    return pieces.withHap((hap) =>
+      hap.withValue((v) => (v ? func(this.ribbon(hap.whole.begin, hap.whole.duration)) : this)),
+    );
+  }
+
+  /**
+   * Breaks a pattern into pieces according to the structure of a given pattern.
+   * True values in the given pattern cause the corresponding subcycle of the
+   * source pattern to be looped, and for an (optional) given function to be
+   * applied. False values result in the corresponding part of the source pattern
+   * to be played unchanged.
+   * @name into
+   * @memberof Pattern
+   * @example
+   * sound("bd sd ht lt").into("1 0", hurry(2))
+   */
+  into(pieces, func) {
+    return this.unjoin(pieces, func).innerJoin();
   }
 }
 
@@ -904,12 +946,13 @@ Pattern.prototype.collect = function () {
  * note("<[c,eb,g]!2 [c,f,ab] [d,f,ab]>")
  * .arpWith(haps => haps[2])
  * */
-Pattern.prototype.arpWith = function (func) {
-  return this.collect()
+export const arpWith = register('arpWith', (func, pat) => {
+  return pat
+    .collect()
     .fmap((v) => reify(func(v)))
     .innerJoin()
     .withHap((h) => new Hap(h.whole, h.part, h.value.value, h.combineContext(h.value)));
-};
+});
 
 /**
  * Selects indices in in stacked notes.
@@ -917,9 +960,11 @@ Pattern.prototype.arpWith = function (func) {
  * note("<[c,eb,g]!2 [c,f,ab] [d,f,ab]>")
  * .arp("0 [0,2] 1 [0,2]")
  * */
-Pattern.prototype.arp = function (pat) {
-  return this.arpWith((haps) => pat.fmap((i) => haps[i % haps.length]));
-};
+export const arp = register(
+  'arp',
+  (indices, pat) => pat.arpWith((haps) => reify(indices).fmap((i) => haps[i % haps.length])),
+  false,
+);
 
 /*
  * Takes a time duration followed by one or more patterns, and shifts the given patterns in time, so they are
@@ -954,7 +999,7 @@ addToPrototype('weaveWith', function (t, ...funcs) {
 // compose matrix functions
 
 function _nonArrayObject(x) {
-  return !Array.isArray(x) && typeof x === 'object';
+  return !Array.isArray(x) && typeof x === 'object' && !isFraction(x);
 }
 function _composeOp(a, b, func) {
   if (_nonArrayObject(a) || _nonArrayObject(b)) {
@@ -1201,7 +1246,8 @@ export const silence = gap(1);
 /* Like silence, but with a 'steps' (relative duration) of 0 */
 export const nothing = gap(0);
 
-/** A discrete value that repeats once per cycle.
+/**
+ * A discrete value that repeats once per cycle.
  *
  * @returns {Pattern}
  * @example
@@ -1254,13 +1300,14 @@ export function sequenceP(pats) {
   return result;
 }
 
-/** The given items are played at the same time at the same length.
+/**
+ * The given items are played at the same time at the same length.
  *
  * @return {Pattern}
  * @synonyms polyrhythm, pr
  * @example
  * stack("g3", "b3", ["e4", "d4"]).note()
- * // "g3,b3,[e4,d4]".note()
+ * // "g3,b3,[e4 d4]".note()
  *
  * @example
  * // As a chained function:
@@ -1328,7 +1375,7 @@ export function stackBy(by, ...pats) {
     left: stackLeft,
     right: stackRight,
     expand: stack,
-    repeat: (...args) => polymeterSteps(steps, ...args),
+    repeat: (...args) => polymeter(...args).steps(steps),
   };
   return by
     .inhabit(lookup)
@@ -1337,11 +1384,11 @@ export function stackBy(by, ...pats) {
     .setSteps(steps);
 }
 
-/** Concatenation: combines a list of patterns, switching between them successively, one per cycle:
- *
- * synonyms: `cat`
+/**
+ * Concatenation: combines a list of patterns, switching between them successively, one per cycle.
  *
  * @return {Pattern}
+ * @synonyms cat
  * @example
  * slowcat("e5", "b4", ["d5", "c5"])
  *
@@ -1541,7 +1588,7 @@ export const func = curry((a, b) => reify(b).func(a));
 /**
  * Registers a new pattern method. The method is added to the Pattern class + the standalone function is returned from register.
  *
- * @param {string} name name of the function
+ * @param {string | string[]} name name of the function, or an array of names to be used as synonyms
  * @param {function} func function with 1 or more params, where last is the current pattern
  * @noAutocomplete
  *
@@ -1981,6 +2028,7 @@ export const apply = register('apply', function (func, pat) {
 
 /**
  * Plays the pattern at the given cycles per minute.
+ * @deprecated
  * @example
  * s("<bd sd>,hh*2").cpm(90) // = 90 bpm
  */
@@ -2043,7 +2091,7 @@ export const zoom = register('zoom', function (s, e, pat) {
     return nothing;
   }
   const d = e.sub(s);
-  const steps = __steps ? pat._steps.mulmaybe(d) : undefined;
+  const steps = __steps ? pat._steps?.mulmaybe(d) : undefined;
   return pat
     .withQuerySpan((span) => span.withCycle((t) => t.mul(d).add(s)))
     .withHapSpan((span) => span.withCycle((t) => t.sub(s).div(d)))
@@ -2105,11 +2153,13 @@ export const linger = register(
 
 /**
  * Samples the pattern at a rate of n events per cycle. Useful for turning a continuous pattern into a discrete one.
+ * @name segment
+ * @synonyms seg
  * @param {number} segments number of segments per cycle
  * @example
  * note(saw.range(40,52).segment(24))
  */
-export const segment = register('segment', function (rate, pat) {
+export const { segment, seg } = register(['segment', 'seg'], function (rate, pat) {
   return pat.struct(pure(true)._fast(rate)).setSteps(rate);
 });
 
@@ -2349,6 +2399,57 @@ export const stut = register('stut', function (times, feedback, time, pat) {
   return pat._echoWith(times, time, (pat, i) => pat.gain(Math.pow(feedback, i)));
 });
 
+export const applyN = register('applyN', function (n, func, p) {
+  let result = p;
+  for (let i = 0; i < n; i++) {
+    result = func(result);
+  }
+  return result;
+});
+
+/**
+ * The plyWith function repeats each event the given number of times, applying the given function to each event.\n
+ * @name plyWith
+ * @synonyms plywith
+ * @param {number} factor how many times to repeat
+ * @param {function} func function to apply, given the pattern
+ * @example
+ * "<0 [2 4]>"
+ * .plyWith(4, (p) => p.add(2))
+ * .scale("C:minor").note()
+ */
+export const plyWith = register(['plyWith', 'plywith'], function (factor, func, pat) {
+  const result = pat
+    .fmap((x) => cat(...listRange(0, factor - 1).map((i) => applyN(i, func, x)))._fast(factor))
+    .squeezeJoin();
+  if (__steps) {
+    result._steps = Fraction(factor).mulmaybe(pat._steps);
+  }
+  return result;
+});
+
+/**
+ * The plyForEach function repeats each event the given number of times, applying the given function to each event.
+ * This version of ply uses the iteration index as an argument to the function, similar to echoWith.
+ * @name plyForEach
+ * @synonyms plyforeach
+ * @param {number} factor how many times to repeat
+ * @param {function} func function to apply, given the pattern and the iteration index
+ * @example
+ * "<0 [2 4]>"
+ * .plyForEach(4, (p,n) => p.add(n*2))
+ * .scale("C:minor").note()
+ */
+export const plyForEach = register(['plyForEach', 'plyforeach'], function (factor, func, pat) {
+  const result = pat
+    .fmap((x) => cat(cat(pure(x), ...listRange(1, factor - 1).map((i) => func(pure(x), i))))._fast(factor))
+    .squeezeJoin();
+  if (__steps) {
+    result._steps = Fraction(factor).mulmaybe(pat._steps);
+  }
+  return result;
+});
+
 /**
  * Divides a pattern into a given number of subdivisions, plays the subdivisions in order, but increments the starting subdivision each cycle. The pattern wraps to the first subdivision after the last subdivision is played.
  * @name iter
@@ -2439,9 +2540,14 @@ const _chunk = function (n, func, pat, back = false, fast = false) {
   return pat.when(binary_pat, func);
 };
 
-export const { chunk, slowchunk, slowChunk } = register(['chunk', 'slowchunk', 'slowChunk'], function (n, func, pat) {
-  return _chunk(n, func, pat, false, false);
-});
+export const { chunk, slowchunk, slowChunk } = register(
+  ['chunk', 'slowchunk', 'slowChunk'],
+  function (n, func, pat) {
+    return _chunk(n, func, pat, false, false);
+  },
+  true,
+  true,
+);
 
 /**
  * Like `chunk`, but cycles through the parts in reverse order. Known as chunk' in tidalcycles
@@ -2453,9 +2559,14 @@ export const { chunk, slowchunk, slowChunk } = register(['chunk', 'slowchunk', '
  * "0 1 2 3".chunkBack(4, x=>x.add(7))
  * .scale("A:minor").note()
  */
-export const { chunkBack, chunkback } = register(['chunkBack', 'chunkback'], function (n, func, pat) {
-  return _chunk(n, func, pat, true);
-});
+export const { chunkBack, chunkback } = register(
+  ['chunkBack', 'chunkback'],
+  function (n, func, pat) {
+    return _chunk(n, func, pat, true);
+  },
+  true,
+  true,
+);
 
 /**
  * Like `chunk`, but the cycles of the source pattern aren't repeated
@@ -2469,8 +2580,44 @@ export const { chunkBack, chunkback } = register(['chunkBack', 'chunkback'], fun
  * .fastChunk(4, x => x.color('red')).slow(2)
  * .scale("C2:major").note()
  */
-export const { fastchunk, fastChunk } = register(['fastchunk', 'fastChunk'], function (n, func, pat) {
-  return _chunk(n, func, pat, false, true);
+export const { fastchunk, fastChunk } = register(
+  ['fastchunk', 'fastChunk'],
+  function (n, func, pat) {
+    return _chunk(n, func, pat, false, true);
+  },
+  true,
+  true,
+);
+
+/**
+ * Like `chunk`, but the function is applied to a looped subcycle of the source pattern.
+ * @name chunkInto
+ * @synonyms chunkinto
+ * @memberof Pattern
+ * @example
+ * sound("bd sd ht lt bd - cp lt").chunkInto(4, hurry(2))
+ *   .bank("tr909")
+ */
+export const { chunkinto, chunkInto } = register(['chunkinto', 'chunkInto'], function (n, func, pat) {
+  return pat.into(fastcat(true, ...Array(n - 1).fill(false))._iterback(n), func);
+});
+
+/**
+ * Like `chunkInto`, but moves backwards through the chunks.
+ * @name chunkBackInto
+ * @synonyms chunkbackinto
+ * @memberof Pattern
+ * @example
+ * sound("bd sd ht lt bd - cp lt").chunkInto(4, hurry(2))
+ *   .bank("tr909")
+ */
+export const { chunkbackinto, chunkBackInto } = register(['chunkbackinto', 'chunkBackInto'], function (n, func, pat) {
+  return pat.into(
+    fastcat(true, ...Array(n - 1).fill(false))
+      ._iter(n)
+      ._early(1),
+    func,
+  );
 });
 
 // TODO - redefine elsewhere in terms of mask
@@ -2485,16 +2632,24 @@ export const bypass = register(
 );
 
 /**
- * Loops the pattern inside at `offset` for `cycles`.
+ * Loops the pattern inside an `offset` for `cycles`.
+ * If you think of the entire span of time in cycles as a ribbon, you can cut a single piece and loop it.
+ * @name ribbon
+ * @synonyms rib
  * @param {number} offset start point of loop in cycles
  * @param {number} cycles loop length in cycles
  * @example
- * note("<c d e f>").ribbon(1, 2).fast(2)
+ * note("<c d e f>").ribbon(1, 2)
  * @example
  * // Looping a portion of randomness
- * note(irand(8).segment(4).scale('C3 minor')).ribbon(1337, 2)
+ * n(irand(8).segment(4)).scale("c:pentatonic").ribbon(1337, 2)
+ * @example
+ * // rhythm generator
+ * s("bd!16?").ribbon(29,.5)
  */
-export const ribbon = register('ribbon', (offset, cycles, pat) => pat.early(offset).restart(pure(1).slow(cycles)));
+export const { ribbon, rib } = register(['ribbon', 'rib'], (offset, cycles, pat) =>
+  pat.early(offset).restart(pure(1).slow(cycles)),
+);
 
 export const hsla = register('hsla', (h, s, l, a, pat) => {
   return pat.color(`hsla(${h}turn,${s * 100}%,${l * 100}%,${a})`);
@@ -2648,34 +2803,10 @@ export function _polymeterListSteps(steps, ...args) {
 /**
  * *Experimental*
  *
- * Aligns the steps of the patterns, to match the given number of steps per cycle, creating polymeters.
- *
- * @name polymeterSteps
- * @param  {number} steps how many items are placed in one cycle
- * @param  {any[]} patterns one or more patterns
- * @example
- * // the same as "{c d, e f g}%4"
- * polymeterSteps(4, "c d", "e f g").note()
- */
-export function polymeterSteps(steps, ...args) {
-  if (args.length == 0) {
-    return silence;
-  }
-  if (Array.isArray(args[0])) {
-    // Support old behaviour
-    return _polymeterListSteps(steps, ...args);
-  }
-
-  return polymeter(...args).pace(steps);
-}
-
-/**
- * *Experimental*
- *
- * Aligns the steps of the patterns, to match the steps per cycle of the first pattern, creating polymeters. See `polymeterSteps` to set the target steps explicitly.
+ * Aligns the steps of the patterns, creating polymeters. The patterns are repeated until they all fit the cycle. For example, in the below the first pattern is repeated twice, and the second is repeated three times, to fit the lowest common multiple of six steps.
  * @synonyms pm
  * @example
- * // The same as note("{c eb g, c2 g2}")
+ * // The same as note("{c eb g, c2 g2}%6")
  * polymeter("c eb g", "c2 g2").note()
  *
  */
@@ -2691,13 +2822,12 @@ export function polymeter(...args) {
   if (args.length == 0) {
     return silence;
   }
-  const steps = args[0]._steps;
+  const steps = lcm(...args.map((x) => x._steps));
   if (steps.eq(Fraction(0))) {
     return nothing;
   }
-  const [head, ...tail] = args;
 
-  const result = stack(head, ...tail.map((pat) => pat._slow(pat._steps.div(steps))));
+  const result = stack(...args.map((x) => x.pace(steps)));
   result._steps = steps;
   return result;
 }
@@ -2719,7 +2849,7 @@ export function stepcat(...timepats) {
   if (timepats.length === 0) {
     return nothing;
   }
-  const findsteps = (x) => (Array.isArray(x) ? x : [x._steps, x]);
+  const findsteps = (x) => (Array.isArray(x) ? x : [x._steps ?? 1, x]);
   timepats = timepats.map(findsteps);
   if (timepats.find((x) => x[0] === undefined)) {
     const times = timepats.map((a) => a[0]).filter((x) => x !== undefined);
@@ -3065,8 +3195,6 @@ export const timeCat = stepcat;
 // Deprecated stepwise aliases
 export const s_cat = stepcat;
 export const s_alt = stepalt;
-export const s_polymeterSteps = polymeterSteps;
-Pattern.prototype.s_polymeterSteps = Pattern.prototype.polymeterSteps;
 export const s_polymeter = polymeter;
 Pattern.prototype.s_polymeter = Pattern.prototype.polymeter;
 export const s_taper = shrink;
@@ -3193,6 +3321,25 @@ export const slice = register(
   },
   false, // turns off auto-patternification
 );
+
+/**
+ *
+ * make something happen on event time
+ * uses browser timeout which is innacurate for audio tasks
+ * @name onTriggerTime
+ * @memberof Pattern
+ *  @returns Pattern
+ * @example
+ * s("bd!8").onTriggerTime((hap) => {console.log(hap)})
+ */
+Pattern.prototype.onTriggerTime = function (func) {
+  return this.onTrigger((hap, currentTime, _cps, targetTime) => {
+    const diff = targetTime - currentTime;
+    window.setTimeout(() => {
+      func(hap);
+    }, diff * 1000);
+  }, false);
+};
 
 /**
  * Works the same as slice, but changes the playback speed of each slice to match the duration of its step.
@@ -3323,3 +3470,69 @@ export const { beat } = register(
   ['beat'],
   __beat((x) => x.innerJoin()),
 );
+
+export const _morph = (from, to, by) => {
+  by = Fraction(by);
+  const dur = Fraction(1).div(from.length);
+  const positions = (list) => {
+    const result = [];
+    for (const [pos, value] of list.entries()) {
+      if (value) {
+        result.push([Fraction(pos).div(list.length), value]);
+      }
+    }
+    return result;
+  };
+  const arcs = zipWith(
+    ([posa, valuea], [posb, valueb]) => {
+      const b = by.mul(posb - posa).add(posa);
+      const e = b.add(dur);
+      return new TimeSpan(b, e);
+    },
+    positions(from),
+    positions(to),
+  );
+  function query(state) {
+    const cycle = state.span.begin.sam();
+    const cycleArc = state.span.cycleArc();
+    const result = [];
+    for (const whole of arcs) {
+      const part = whole.intersection(cycleArc);
+      if (part !== undefined) {
+        result.push(
+          new Hap(
+            whole.withTime((x) => x.add(cycle)),
+            part.withTime((x) => x.add(cycle)),
+            true,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+  return new Pattern(query).splitQueries();
+};
+
+/**
+ * Takes two binary rhythms represented as lists of 1s and 0s, and a number
+ * between 0 and 1 that morphs between them. The two lists should contain the same
+ * number of true values.
+ * @example
+ * sound("hh").struct(morph([1,0,1,0,1,0,1,0], // straight rhythm
+ *                          [1,1,0,1,0,1,0], // wonky rhythm
+ *                          0.25 // creates a slightly wonky rhythm
+ *                         )
+ *                   )
+ * @example
+ * sound("hh").struct(morph("1:0:1:0:1:0:1:0", // straight rhythm
+ *                          "1:1:0:1:0:1:0", // wonky rhythm
+ *                          sine.slow(8) // slowly morph between the rhythms
+ *                         )
+ *                   )
+ */
+export const morph = (frompat, topat, bypat) => {
+  frompat = reify(frompat);
+  topat = reify(topat);
+  bypat = reify(bypat);
+  return frompat.innerBind((from) => topat.innerBind((to) => bypat.innerBind((by) => _morph(from, to, by))));
+};

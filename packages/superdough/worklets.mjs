@@ -6,20 +6,44 @@ import OLAProcessor from './ola-processor';
 import FFT from './fft.js';
 
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
-const _mod = (n, m) => ((n % m) + m) % m;
+const mod = (n, m) => ((n % m) + m) % m;
+const lerp = (a, b, n) => n * (b - a) + a;
+const pv = (arr, n) => arr[n] ?? arr[0];
+const frac = (x) => x - Math.floor(x);
+const ffloor = (x) => x | 0; // fast floor for non-negative
 
+const getUnisonDetune = (unison, detune, voiceIndex) => {
+  if (unison < 2) {
+    return 0;
+  }
+  return lerp(-detune * 0.5, detune * 0.5, voiceIndex / (unison - 1));
+};
+const applySemitoneDetuneToFrequency = (frequency, detune) => {
+  return frequency * Math.pow(2, detune / 12);
+};
+
+// Restrict phase to the range [0, maxPhase) via wrapping
+function wrapPhase(phase, maxPhase = 1) {
+  if (phase >= maxPhase) {
+    phase -= maxPhase;
+  } else if (phase < 0) {
+    phase += maxPhase;
+  }
+  return phase;
+}
 const blockSize = 128;
-// adjust waveshape to remove frequencies above nyquist to prevent aliasing
+// Smooth waveshape near discontinuities to remove frequencies above Nyquist and prevent aliasing
 // referenced from https://www.kvraudio.com/forum/viewtopic.php?t=375517
 function polyBlep(phase, dt) {
-  // 0 <= phase < 1
+  dt = Math.min(dt, 1 - dt);
+  // Start of cycle
   if (phase < dt) {
     phase /= dt;
     // 2 * (phase - phase^2/2 - 0.5)
     return phase + phase - phase * phase - 1;
   }
 
-  // -1 < phase < 0
+  // End of cycle
   else if (phase > 1 - dt) {
     phase = (phase - 1) / dt;
     // 2 * (phase^2/2 + phase + 0.5)
@@ -31,7 +55,7 @@ function polyBlep(phase, dt) {
     return 0;
   }
 }
-
+// The order is important for dough integration
 const waveshapes = {
   tri(phase, skew = 0.5) {
     const x = 1 - skew;
@@ -75,11 +99,18 @@ const waveshapes = {
     return v - polyBlep(phase, dt);
   },
 };
+function getParamValue(block, param) {
+  if (param.length > 1) {
+    return param[block];
+  }
+  return param[0];
+}
 
 const waveShapeNames = Object.keys(waveshapes);
 class LFOProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
+      { name: 'begin', defaultValue: 0 },
       { name: 'time', defaultValue: 0 },
       { name: 'end', defaultValue: 0 },
       { name: 'frequency', defaultValue: 0.5 },
@@ -87,7 +118,10 @@ class LFOProcessor extends AudioWorkletProcessor {
       { name: 'depth', defaultValue: 1 },
       { name: 'phaseoffset', defaultValue: 0 },
       { name: 'shape', defaultValue: 0 },
+      { name: 'curve', defaultValue: 1 },
       { name: 'dcoffset', defaultValue: 0 },
+      { name: 'min', defaultValue: 0 },
+      { name: 'max', defaultValue: 1 },
     ];
   }
 
@@ -103,10 +137,13 @@ class LFOProcessor extends AudioWorkletProcessor {
     }
   }
 
-  process(inputs, outputs, parameters) {
-    // eslint-disable-next-line no-undef
+  process(_inputs, outputs, parameters) {
+    const begin = parameters['begin'][0];
     if (currentTime >= parameters.end[0]) {
       return false;
+    }
+    if (currentTime <= begin) {
+      return true;
     }
 
     const output = outputs[0];
@@ -117,20 +154,24 @@ class LFOProcessor extends AudioWorkletProcessor {
     const skew = parameters['skew'][0];
     const phaseoffset = parameters['phaseoffset'][0];
 
+    const curve = parameters['curve'][0];
+
     const dcoffset = parameters['dcoffset'][0];
+    const min = parameters['min'][0];
+    const max = parameters['max'][0];
     const shape = waveShapeNames[parameters['shape'][0]];
 
     const blockSize = output[0].length ?? 0;
 
     if (this.phase == null) {
-      this.phase = _mod(time * frequency + phaseoffset, 1);
+      this.phase = mod(time * frequency + phaseoffset, 1);
     }
-    // eslint-disable-next-line no-undef
     const dt = frequency / sampleRate;
     for (let n = 0; n < blockSize; n++) {
       for (let i = 0; i < output.length; i++) {
-        const modval = (waveshapes[shape](this.phase, skew) + dcoffset) * depth;
-        output[i][n] = modval;
+        let modval = (waveshapes[shape](this.phase, skew) + dcoffset) * depth;
+        modval = Math.pow(modval, curve);
+        output[i][n] = clamp(modval, min, max);
       }
       this.incrementPhase(dt);
     }
@@ -244,6 +285,73 @@ class ShapeProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('shape-processor', ShapeProcessor);
 
+class TwoPoleFilter {
+  s0 = 0;
+  s1 = 0;
+  update(s, cutoff, resonance = 0) {
+    // Out of bound values can produce NaNs
+    resonance = clamp(resonance, 0, 1);
+    cutoff = clamp(cutoff, 0, sampleRate / 2 - 1);
+    const c = clamp(2 * Math.sin(cutoff * (_PI / sampleRate)), 0, 1.14);
+    const r = Math.pow(0.5, (resonance + 0.125) / 0.125);
+    const mrc = 1 - r * c;
+    this.s0 = mrc * this.s0 - c * this.s1 + c * s; // bpf
+    this.s1 = mrc * this.s1 + c * this.s0; // lpf
+    return this.s1; // return lpf by default
+  }
+}
+
+class DJFProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [{ name: 'value', defaultValue: 0.5 }];
+  }
+
+  constructor() {
+    super();
+    this.filters = [new TwoPoleFilter(), new TwoPoleFilter()];
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+
+    const hasInput = !(input[0] === undefined);
+    this.started = hasInput;
+
+    const value = clamp(parameters.value[0], 0, 1);
+    let filterType = 'none';
+    let cutoff;
+    let v = 1;
+    if (value > 0.51) {
+      filterType = 'hipass';
+      v = (value - 0.5) * 2;
+    } else if (value < 0.49) {
+      filterType = 'lopass';
+      v = value * 2;
+    }
+    cutoff = Math.pow(v * 11, 4);
+
+    for (let i = 0; i < input.length; i++) {
+      for (let n = 0; n < blockSize; n++) {
+        if (filterType == 'none') {
+          output[i][n] = input[i][n];
+        } else {
+          this.filters[i].update(input[i][n], cutoff, 0.1);
+          if (filterType === 'lopass') {
+            output[i][n] = this.filters[i].s1;
+          } else if (filterType === 'hipass') {
+            output[i][n] = input[i][n] - this.filters[i].s1;
+          } else {
+            output[i][n] = input[i][n];
+          }
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('djf-processor', DJFProcessor);
+
 function fast_tanh(x) {
   const x2 = x * x;
   return (x * (27.0 + x2)) / (27.0 + 9.0 * x2);
@@ -286,11 +394,10 @@ class LadderProcessor extends AudioWorkletProcessor {
     const drive = clamp(Math.exp(parameters.drive[0]), 0.1, 2000);
 
     let cutoff = parameters.frequency[0];
-    // eslint-disable-next-line no-undef
     cutoff = (cutoff * 2 * _PI) / sampleRate;
     cutoff = cutoff > 1 ? 1 : cutoff;
 
-    const k = Math.min(8, resonance * 0.4);
+    const k = Math.min(8, resonance * 0.13);
     //               drive makeup  * resonance volume loss makeup
     let makeupgain = (1 / drive) * Math.min(1.75, 1 + k);
 
@@ -352,16 +459,6 @@ class DistortProcessor extends AudioWorkletProcessor {
 registerProcessor('distort-processor', DistortProcessor);
 
 // SUPERSAW
-function lerp(a, b, n) {
-  return n * (b - a) + a;
-}
-
-function getUnisonDetune(unison, detune, voiceIndex) {
-  if (unison < 2) {
-    return 0;
-  }
-  return lerp(-detune * 0.5, detune * 0.5, voiceIndex / (unison - 1));
-}
 class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -413,54 +510,48 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       },
     ];
   }
-  process(input, outputs, params) {
-    // eslint-disable-next-line no-undef
+  process(_input, outputs, params) {
     if (currentTime <= params.begin[0]) {
       return true;
     }
-    // eslint-disable-next-line no-undef
     if (currentTime >= params.end[0]) {
       // this.port.postMessage({ type: 'onended' });
       return false;
     }
-    let frequency = params.frequency[0];
-    //apply detune in cents
-    frequency = frequency * Math.pow(2, params.detune[0] / 1200);
 
     const output = outputs[0];
-    const voices = params.voices[0];
-    const freqspread = params.freqspread[0];
-    const panspread = params.panspread[0] * 0.5 + 0.5;
-    const gain1 = Math.sqrt(1 - panspread);
-    const gain2 = Math.sqrt(panspread);
 
-    for (let n = 0; n < voices; n++) {
-      const isOdd = (n & 1) == 1;
-
-      //applies unison "spread" detune in semitones
-      const freq = frequency * Math.pow(2, getUnisonDetune(voices, freqspread, n) / 12);
-      let gainL = gain1;
-      let gainR = gain2;
-      // invert right and left gain
-      if (isOdd) {
-        gainL = gain2;
-        gainR = gain1;
-      }
-      // eslint-disable-next-line no-undef
-      const dt = freq / sampleRate;
-
-      for (let i = 0; i < output[0].length; i++) {
+    for (let i = 0; i < output[0].length; i++) {
+      const detune = pv(params.detune, i);
+      const voices = pv(params.voices, i);
+      const freqspread = pv(params.freqspread, i);
+      const panspread = pv(params.panspread, i) * 0.5 + 0.5;
+      const gain1 = Math.sqrt(1 - panspread);
+      const gain2 = Math.sqrt(panspread);
+      let freq = pv(params.frequency, i);
+      // Main detuning
+      freq = applySemitoneDetuneToFrequency(freq, detune / 100);
+      for (let n = 0; n < voices; n++) {
+        const isOdd = (n & 1) == 1;
+        let gainL = gain1;
+        let gainR = gain2;
+        // invert right and left gain
+        if (isOdd) {
+          gainL = gain2;
+          gainR = gain1;
+        }
+        // Individual voice detuning
+        const freqVoice = applySemitoneDetuneToFrequency(freq, getUnisonDetune(voices, freqspread, n));
+        // We must wrap this here because it is passed into sawblep below which
+        // has domain [0, 1]
+        const dt = mod(freqVoice / sampleRate, 1);
         this.phase[n] = this.phase[n] ?? Math.random();
         const v = waveshapes.sawblep(this.phase[n], dt);
 
         output[0][i] = output[0][i] + v * gainL;
         output[1][i] = output[1][i] + v * gainR;
 
-        this.phase[n] += dt;
-
-        if (this.phase[n] > 1.0) {
-          this.phase[n] = this.phase[n] - 1;
-        }
+        this.phase[n] = wrapPhase(this.phase[n] + dt);
       }
     }
     return true;
@@ -469,7 +560,7 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
 
 registerProcessor('supersaw-oscillator', SuperSawOscillatorProcessor);
 
-// Phase Vocoder sourced from // sourced from https://github.com/olvb/phaze/tree/master?tab=readme-ov-file
+// Phase Vocoder sourced from https://github.com/olvb/phaze/tree/master?tab=readme-ov-file
 const BUFFERED_BLOCK_SIZE = 2048;
 
 function genHannWindow(length) {
@@ -648,3 +739,578 @@ class PhaseVocoderProcessor extends OLAProcessor {
 }
 
 registerProcessor('phase-vocoder-processor', PhaseVocoderProcessor);
+
+// Adapted from https://www.musicdsp.org/en/latest/Effects/221-band-limited-pwm-generator.html
+class PulseOscillatorProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.pi = _PI;
+    this.phi = -this.pi; // phase
+    this.Y0 = 0; // feedback memories
+    this.Y1 = 0;
+    this.PW = this.pi; // pulse width
+    this.B = 2.3; // feedback coefficient
+    this.dphif = 0; // filtered phase increment
+    this.envf = 0; // filtered envelope
+  }
+
+  static get parameterDescriptors() {
+    return [
+      {
+        name: 'begin',
+        defaultValue: 0,
+        max: Number.POSITIVE_INFINITY,
+        min: 0,
+      },
+
+      {
+        name: 'end',
+        defaultValue: 0,
+        max: Number.POSITIVE_INFINITY,
+        min: 0,
+      },
+
+      {
+        name: 'frequency',
+        defaultValue: 440,
+        min: Number.EPSILON,
+      },
+      {
+        name: 'detune',
+        defaultValue: 0,
+        min: Number.NEGATIVE_INFINITY,
+        max: Number.POSITIVE_INFINITY,
+      },
+      {
+        name: 'pulsewidth',
+        defaultValue: 1,
+        min: 0,
+        max: Number.POSITIVE_INFINITY,
+      },
+    ];
+  }
+
+  process(inputs, outputs, params) {
+    if (this.disconnected) {
+      return false;
+    }
+    if (currentTime <= params.begin[0]) {
+      return true;
+    }
+    if (currentTime >= params.end[0]) {
+      return false;
+    }
+    const output = outputs[0];
+    let env = 1,
+      dphi;
+
+    for (let i = 0; i < (output[0].length ?? 0); i++) {
+      const pw = (1 - clamp(getParamValue(i, params.pulsewidth), -0.99, 0.99)) * this.pi;
+      const detune = getParamValue(i, params.detune);
+      const freq = applySemitoneDetuneToFrequency(getParamValue(i, params.frequency), detune / 100);
+
+      dphi = freq * (this.pi / (sampleRate * 0.5)); // phase increment
+      this.dphif += 0.1 * (dphi - this.dphif);
+
+      env *= 0.9998; // exponential decay envelope
+      this.envf += 0.1 * (env - this.envf);
+
+      // Feedback coefficient control
+      this.B = 2.3 * (1 - 0.0001 * freq); // feedback limitation
+      if (this.B < 0) this.B = 0;
+
+      // Waveform generation (half-Tomisawa oscillators)
+      this.phi += this.dphif; // phase increment
+      if (this.phi >= this.pi) this.phi -= 2 * this.pi; // phase wrapping
+
+      // First half-Tomisawa generator
+      let out0 = Math.cos(this.phi + this.B * this.Y0); // self-phase modulation
+      this.Y0 = 0.5 * (out0 + this.Y0); // anti-hunting filter
+
+      // Second half-Tomisawa generator (with phase offset for pulse width)
+      let out1 = Math.cos(this.phi + this.B * this.Y1 + pw);
+      this.Y1 = 0.5 * (out1 + this.Y1); // anti-hunting filter
+
+      for (let o = 0; o < output.length; o++) {
+        // Combination of both oscillators with envelope applied
+        output[o][i] = 0.15 * (out0 - out1) * this.envf;
+      }
+    }
+
+    return true; // keep the audio processing going
+  }
+}
+
+registerProcessor('pulse-oscillator', PulseOscillatorProcessor);
+
+/**  BYTE BEATS */
+const chyx = {
+  /*bit*/ bitC: function (x, y, z) {
+    return x & y ? z : 0;
+  },
+  /*bit reverse*/ br: function (x, size = 8) {
+    if (size > 32) {
+      throw new Error('br() Size cannot be greater than 32');
+    } else {
+      let result = 0;
+      for (let idx = 0; idx < size - 0; idx++) {
+        result += chyx.bitC(x, 2 ** idx, 2 ** (size - (idx + 1)));
+      }
+      return result;
+    }
+  },
+  /*sin that loops every 128 "steps", instead of every pi steps*/ sinf: function (x) {
+    return Math.sin(x / (128 / Math.PI));
+  },
+  /*cos that loops every 128 "steps", instead of every pi steps*/ cosf: function (x) {
+    return Math.cos(x / (128 / Math.PI));
+  },
+  /*tan that loops every 128 "steps", instead of every pi steps*/ tanf: function (x) {
+    return Math.tan(x / (128 / Math.PI));
+  },
+  /*converts t into a string composed of it's bits, regex's that*/ regG: function (t, X) {
+    return X.test(t.toString(2));
+  },
+};
+
+// Create shortened Math functions
+let mathParams, byteBeatHelperFuncs;
+function getByteBeatFunc(codetext) {
+  if ((mathParams || byteBeatHelperFuncs) == null) {
+    mathParams = Object.getOwnPropertyNames(Math);
+    byteBeatHelperFuncs = mathParams.map((k) => Math[k]);
+    const chyxNames = Object.getOwnPropertyNames(chyx);
+    const chyxFuncs = chyxNames.map((k) => chyx[k]);
+    mathParams.push('int', 'window', ...chyxNames);
+    byteBeatHelperFuncs.push(Math.floor, globalThis, ...chyxFuncs);
+  }
+  return new Function(...mathParams, 't', `return 0,\n${codetext || 0};`).bind(globalThis, ...byteBeatHelperFuncs);
+}
+
+class ByteBeatProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.port.onmessage = (event) => {
+      let { codeText } = event.data;
+      const { byteBeatStartTime } = event.data;
+      if (byteBeatStartTime != null) {
+        this.t = 0;
+        this.initialOffset = Math.floor(byteBeatStartTime);
+      }
+
+      //Optimization pulled from dollchan.net: https://github.com/Chasyxx/EnBeat_NEW, it seemed important
+      //Optimize code like eval(unescape(escape`XXXX`.replace(/u(..)/g,"$1%")))
+      codeText = codeText
+        .trim()
+        .replace(
+          /^eval\(unescape\(escape(?:`|\('|\("|\(`)(.*?)(?:`|'\)|"\)|`\)).replace\(\/u\(\.\.\)\/g,["'`]\$1%["'`]\)\)\)$/,
+          (match, m1) => unescape(escape(m1).replace(/u(..)/g, '$1%')),
+        );
+
+      this.func = getByteBeatFunc(codeText);
+    };
+    this.initialOffset = null;
+    this.t = null;
+    this.func = null;
+  }
+
+  static get parameterDescriptors() {
+    return [
+      {
+        name: 'begin',
+        defaultValue: 0,
+        max: Number.POSITIVE_INFINITY,
+        min: 0,
+      },
+      {
+        name: 'frequency',
+        defaultValue: 440,
+        min: Number.EPSILON,
+      },
+      {
+        name: 'detune',
+        defaultValue: 0,
+        min: Number.NEGATIVE_INFINITY,
+        max: Number.POSITIVE_INFINITY,
+      },
+      {
+        name: 'end',
+        defaultValue: 0,
+        max: Number.POSITIVE_INFINITY,
+        min: 0,
+      },
+    ];
+  }
+
+  process(inputs, outputs, params) {
+    if (this.disconnected) {
+      return false;
+    }
+    if (currentTime <= params.begin[0]) {
+      return true;
+    }
+    if (currentTime >= params.end[0]) {
+      return false;
+    }
+    if (this.t == null) {
+      this.t = params.begin[0] * sampleRate;
+    }
+    const output = outputs[0];
+    for (let i = 0; i < output[0].length; i++) {
+      const detune = getParamValue(i, params.detune);
+      const freq = applySemitoneDetuneToFrequency(getParamValue(i, params.frequency), detune / 100);
+      let local_t = (this.t / (sampleRate / 256)) * freq + this.initialOffset;
+      const funcValue = this.func(local_t);
+      let signal = (funcValue & 255) / 127.5 - 1;
+      const out = signal * 0.2;
+      for (let c = 0; c < output.length; c++) {
+        //prevent speaker blowout via clipping if threshold exceeds
+        output[c][i] = clamp(out, -0.4, 0.4);
+      }
+      this.t = this.t + 1;
+    }
+
+    return true; // keep the audio processing going
+  }
+}
+
+registerProcessor('byte-beat-processor', ByteBeatProcessor);
+
+export const WarpMode = Object.freeze({
+  NONE: 0,
+  ASYM: 1,
+  MIRROR: 2,
+  BENDP: 3,
+  BENDM: 4,
+  BENDMP: 5,
+  SYNC: 6,
+  QUANT: 7,
+  FOLD: 8,
+  PWM: 9,
+  ORBIT: 10,
+  SPIN: 11,
+  CHAOS: 12,
+  PRIMES: 13,
+  BINARY: 14,
+  BROWNIAN: 15,
+  RECIPROCAL: 16,
+  WORMHOLE: 17,
+  LOGISTIC: 18,
+  SIGMOID: 19,
+  FRACTAL: 20,
+  FLIP: 21,
+});
+
+function hash32(u) {
+  u = u + 0x7ed55d16 + (u << 12);
+  u = u ^ 0xc761c23c ^ (u >>> 19);
+  u = u + 0x165667b1 + (u << 5);
+  u = (u + 0xd3a2646c) ^ (u << 9);
+  u = u + 0xfd7046c5 + (u << 3);
+  u = u ^ 0xb55a4f09 ^ (u >>> 16);
+  return u >>> 0;
+}
+const hash01 = (i) => (hash32(i) >>> 8) / 0x01000000;
+
+function bitReverse(i, n) {
+  let r = 0;
+  for (let b = 0; b < n; b++) {
+    r = (r << 1) | (i & 1);
+    i >>>= 1;
+  }
+  return r;
+}
+
+function noise(x) {
+  const i = Math.floor(x),
+    f = x - i;
+  const a = hash01(i),
+    b = hash01(i + 1);
+  return a + (b - a) * f;
+}
+
+function brownian(x, oct = 4) {
+  let amp = 0.5,
+    sum = 0,
+    norm = 0,
+    freq = 1;
+  for (let o = 0; o < oct; o++) {
+    sum += amp * noise(x * freq);
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return (sum / norm) * 2 - 1;
+}
+
+const tablesCache = {};
+class WavetableOscillatorProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: 'begin', defaultValue: 0, min: 0, max: Number.POSITIVE_INFINITY },
+      { name: 'end', defaultValue: 0, min: 0, max: Number.POSITIVE_INFINITY },
+      { name: 'frequency', defaultValue: 220, minValue: 0.01, maxValue: 20000 },
+      { name: 'detune', defaultValue: 0.18 },
+      { name: 'position', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'warp', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'warpMode', defaultValue: 0 },
+      { name: 'voices', defaultValue: 1, minValue: 1, maxValue: 32 },
+      { name: 'spread', defaultValue: 0.7, minValue: 0, maxValue: 1 },
+      { name: 'phaserand', defaultValue: 0, minValue: 0, maxValue: 1 },
+    ];
+  }
+
+  constructor(options) {
+    super(options);
+    this.frameLen = 0;
+    this.numFrames = 0;
+    this.phase = [];
+    this.invSR = 1 / sampleRate;
+
+    this.port.onmessage = (e) => {
+      const { type, payload } = e.data || {};
+      if (type === 'table') {
+        const key = payload.key;
+        this.frameLen = payload.frameLen;
+        if (!tablesCache[key]) {
+          const tables = [payload.frames];
+          let table = tables[0];
+          for (let level = 1; level < 1; level++) {
+            const nextLen = table.length >> 1;
+            const nextTable = table.map((frame) => {
+              const avg = new Float32Array(nextLen);
+              for (let i = 0; i < nextLen; i++) {
+                avg[i] = (frame[2 * i] + frame[2 * i + 1]) / 2;
+              }
+              return avg;
+            });
+            tables.push(nextTable);
+            table = nextTable;
+            if (nextLen <= 32) break;
+          }
+          tablesCache[key] = tables;
+        }
+        this.tables = tablesCache[key];
+        this.numFrames = this.tables[0].length;
+      }
+    };
+  }
+
+  _mirror(x) {
+    return 1 - Math.abs(2 * x - 1);
+  }
+
+  _toBits(amt, min = 2, max = 12) {
+    const b = max + (min - max) * amt;
+    return { b, n: Math.round(Math.pow(2, b)) };
+  }
+
+  _warpPhase(phase, amt, mode) {
+    switch (mode) {
+      case WarpMode.NONE: {
+        return phase;
+      }
+      case WarpMode.ASYM: {
+        const a = 0.01 + 0.99 * amt;
+        return phase < a ? (0.5 * phase) / a : 0.5 + (0.5 * (phase - a)) / (1 - a);
+      }
+      case WarpMode.MIRROR: {
+        // Asym, then mirror
+        return this._mirror(this._warpPhase(phase, amt, WarpMode.ASYM));
+      }
+      case WarpMode.BENDP: {
+        return Math.pow(phase, 1 + 3 * amt);
+      }
+      case WarpMode.BENDM: {
+        return Math.pow(phase, 1 / (1 + 3 * amt));
+      }
+      case WarpMode.BENDMP: {
+        return amt < 0.5 ? this._warpPhase(phase, 1 - 2 * amt, 3) : this._warpPhase(phase, 2 * amt - 1, 2);
+      }
+      case WarpMode.SYNC: {
+        const syncRatio = Math.pow(16, amt * amt);
+        return (phase * syncRatio) % 1;
+      }
+      case WarpMode.QUANT: {
+        const { n } = this._toBits(amt);
+        return ffloor(phase * n) / n;
+      }
+      case WarpMode.FOLD: {
+        const K = 7;
+        const k = 1 + Math.max(1, Math.round(K * amt));
+        return Math.abs(frac(k * phase) - 0.5) * 2;
+      }
+      case WarpMode.PWM: {
+        const w = clamp(0.5 + 0.49 * (2 * amt - 1), 0, 1);
+        if (phase < w) return (phase / w) * 0.5;
+        return 0.5 + ((phase - w) / (1 - w)) * 0.5;
+      }
+      case WarpMode.ORBIT: {
+        const depth = 0.5 * amt;
+        const n = 3;
+        return frac(phase + depth * Math.sin(2 * Math.PI * n * phase));
+      }
+      case WarpMode.SPIN: {
+        const depth = 0.5 * amt;
+        const { n } = this._toBits(amt, 1, 6);
+        return frac(phase + depth * Math.sin(2 * Math.PI * n * phase));
+      }
+      case WarpMode.CHAOS: {
+        const r = 3.7 + 0.3 * amt;
+        const logistic = r * phase * (1 - phase);
+        return clamp((1 - amt) * phase + amt * logistic, 0, 1);
+      }
+      case WarpMode.PRIMES: {
+        const isPrime = (n) => {
+          if (n < 2) return false;
+          if (n % 2 === 0) return n === 2;
+          for (let d = 3; d * d <= n; d += 2) if (n % d === 0) return false;
+          return true;
+        };
+        let { n } = this._toBits(amt, 3);
+        while (!isPrime(n)) n++;
+        return ffloor(phase * n) / n;
+      }
+      case WarpMode.BINARY: {
+        let { b } = this._toBits(amt, 3);
+        b = Math.round(b);
+        const n = 1 << b;
+        const idx = ffloor(phase * n);
+        const ridx = bitReverse(idx, b);
+        return ridx / n;
+      }
+      case WarpMode.MODULAR: {
+        const { n } = this._toBits(amt);
+        const depth = 0.5 * amt;
+        const jump = frac(phase * n) / n;
+        return frac(phase + depth * jump);
+      }
+      case WarpMode.BROWNIAN: {
+        const disp = 0.25 * amt * brownian(64 * phase, 4);
+        return frac(phase + disp);
+      }
+      case WarpMode.RECIPROCAL: {
+        const g = 2 + 4 * amt;
+        const num = phase * g;
+        const den = phase + (1 - phase) * g;
+        const y = den > 1e-12 ? num / den : 0;
+        return clamp(y, 0, 1);
+      }
+      case WarpMode.WORMHOLE: {
+        const gap = clamp(0.8 * amt, 0, 1);
+        const a = 0.5 * (1 - gap);
+        const b = 0.5 * (1 + gap);
+        if (phase < a) return (phase / a) * 0.5;
+        if (phase > b) return 0.5 * (1 + (phase - b) / (1 - b));
+        return 0.5;
+      }
+      case WarpMode.LOGISTIC: {
+        let x = phase;
+        const r = 3.6 + 0.4 * amt;
+        const iters = 1 + Math.round(2 * amt);
+        for (let i = 0; i < iters; i++) x = r * x * (1 - x);
+        return clamp(x, 0, 1);
+      }
+      case WarpMode.SIGMOID: {
+        const k = 1 + 10 * amt;
+        const x = phase - 0.5;
+        const y = 1 / (1 + Math.exp(-k * x));
+        const y0 = 1 / (1 + Math.exp(0.5 * k));
+        const y1 = 1 / (1 + Math.exp(-0.5 * k));
+        return (y - y0) / (y1 - y0);
+      }
+      case WarpMode.FRACTAL: {
+        const d = 0.5 * Math.sin(2 * Math.PI * phase) * amt;
+        return frac(phase + d);
+      }
+      case WarpMode.FLIP: {
+        return phase;
+      }
+      default:
+        return phase;
+    }
+  }
+
+  _sampleFrame(frame, phase) {
+    const len = frame.length;
+    const pos = phase * len;
+    const i = pos | 0;
+    const frac = pos - i;
+    const a = frame[i];
+    const i1 = i + 1 < len ? i + 1 : 0; // fast wrap
+    const b = frame[i1];
+    return a + (b - a) * frac;
+  }
+
+  _chooseMip(dphi) {
+    const approxHarm = clamp(dphi, 1e-6, 64);
+    let level = 0;
+    while (level + 1 < (this.tables?.length || 1) && approxHarm < this.tables[level][0].length / 8) {
+      level++;
+    }
+    return level;
+  }
+
+  process(_inputs, outputs, parameters) {
+    if (currentTime >= parameters.end[0]) {
+      return false;
+    }
+    if (currentTime <= parameters.begin[0]) {
+      return true;
+    }
+    const outL = outputs[0][0];
+    const outR = outputs[0][1] || outputs[0][0];
+    if (!this.tables) {
+      outL.fill(0);
+      if (outR !== outL) outR.set(outL);
+      return true;
+    }
+    for (let i = 0; i < outL.length; i++) {
+      const detune = pv(parameters.detune, i);
+      const tablePos = clamp(pv(parameters.position, i), 0, 1);
+      const idx = tablePos * (this.numFrames - 1);
+      const fIdx = idx | 0;
+      const frac = idx - fIdx;
+      const warpAmount = clamp(pv(parameters.warp, i), 0, 1);
+      const warpMode = pv(parameters.warpMode, i);
+      const voices = pv(parameters.voices, i);
+      const phaseRand = clamp(pv(parameters.phaserand, i), 0, 1);
+      const spread = voices > 1 ? clamp(pv(parameters.spread, i), 0, 1) : 0;
+      const gain1 = Math.sqrt(0.5 - 0.5 * spread);
+      const gain2 = Math.sqrt(0.5 + 0.5 * spread);
+      let f = pv(parameters.frequency, i);
+      f = applySemitoneDetuneToFrequency(f, detune / 100); // overall detune
+      const normalizer = 1 / Math.sqrt(voices);
+      for (let n = 0; n < voices; n++) {
+        const isOdd = (n & 1) == 1;
+        let gainL = gain1;
+        let gainR = gain2;
+        // invert right and left gain
+        if (isOdd) {
+          gainL = gain2;
+          gainR = gain1;
+        }
+        const fVoice = applySemitoneDetuneToFrequency(f, getUnisonDetune(voices, detune, n)); // voice detune
+        const dPhase = fVoice * this.invSR;
+        const level = this._chooseMip(dPhase);
+        const table = this.tables[level];
+
+        // warp phase then sample
+        this.phase[n] = this.phase[n] ?? Math.random() * phaseRand;
+        const ph = this._warpPhase(this.phase[n], warpAmount, warpMode);
+        const s0 = this._sampleFrame(table[fIdx], ph);
+        const s1 = this._sampleFrame(table[Math.min(this.numFrames - 1, fIdx + 1)], ph);
+        let s = s0 + (s1 - s0) * frac;
+        if (warpMode === WarpMode.FLIP && this.phase[n] < warpAmount) {
+          s = -s;
+        }
+        outL[i] += s * gainL * normalizer;
+        outR[i] += s * gainR * normalizer;
+        this.phase[n] = wrapPhase(this.phase[n] + dPhase);
+      }
+    }
+    return true;
+  }
+}
+
+registerProcessor('wavetable-oscillator-processor', WavetableOscillatorProcessor);
