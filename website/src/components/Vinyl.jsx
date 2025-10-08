@@ -25,13 +25,16 @@ const cyclist = new NeoCyclist(schedulerOptions);
 export function Vinyl() {
   const [isActive, setIsActive] = useState(false);
   const [cyclepos, setCyclepos] = useState(0);
-  const activate = () => setIsActive(true);
+  const activate = () => setIsActive(!isActive);
 
   if (isActive) {
     if (!cyclist.started) {
       cyclist.start();
-      cyclist.setPattern(saw.segment(16));
+      // cyclist.setPattern(saw.segment(8));
     }
+  }
+  else {
+    cyclist.stop();
   }
 
   useEffect(() => {
