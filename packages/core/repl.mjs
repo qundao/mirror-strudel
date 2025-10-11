@@ -4,7 +4,7 @@ import { evaluate as _evaluate } from './evaluate.mjs';
 import { errorLogger, logger } from './logger.mjs';
 import { setTime } from './time.mjs';
 import { evalScope } from './evaluate.mjs';
-import { register, Pattern, isPattern, silence, stack } from './pattern.mjs';
+import { register, Pattern, isPattern, silence, stack, TIMELINES } from './pattern.mjs';
 
 export function repl({
   defaultOutput,
@@ -46,10 +46,6 @@ export function repl({
     onUpdateState?.(state);
   };
 
-  const TIMELINES = {
-    currentOffsets: {},
-    previousOffsets: {},
-  };
   const schedulerOptions = {
     onTrigger: getTrigger({ defaultOutput, getTime }),
     getTime,
@@ -154,69 +150,6 @@ export function repl({
     return silence;
   };
 
-  /**
-   * Aligns the pattern with the specified `timeline` by ID.
-   *
-   * More specifically, if a timeline ID is encountered for the first time, that moment
-   * in time is marked as the "start" of that pattern. Thereafter, any other patterns aligned
-   * with that same id will begin at that same moment in time.
-   *
-   * If a negative ID is supplied, the timeline will reset at the start of the next cycle.
-   *
-   * @param {number | Pattern} id Timeline id. Must be a number. Set to negative to reset the timeline.
-   * @returns Pattern
-   */
-  const timeline = register('timeline', (id, pat) => {
-    const behavior = 2;
-    if (typeof id !== 'number') {
-      logger(`[query] ${id} is not a valid timeline id. Please ensure it is a number. Defaulting to timeline 1.`);
-      id = 1;
-    }
-    const { currentOffsets: state, previousOffsets: prev } = TIMELINES;
-    const key = Math.abs(id);
-    // For negative id we just let the pattern run without resetting, hence tracking `prev`
-    let t = id < 0 ? prev[key] : state[key];
-    // We default here instead of updating `state` to prevent the `draw` functions from
-    // interfering with `state` when querying
-    t ??= Math.ceil(getTime());
-    return (
-      pat
-        .late(t)
-        .onTrigger((hap) => {
-          const T = Number(hap.part.begin);
-          // Set state on the first trigger
-          state[key] ??= T;
-          prev[key] ??= T;
-          if (id < 0) {
-            // Restart on next cycle
-            const nextCycle = Math.floor(T) + 1;
-            switch (behavior) {
-              case 0: {
-                // Restart at start of next cycle
-                state[key] = nextCycle;
-                break;
-              }
-              case 1: {
-                // Restart immediately
-                state[key] = T;
-                break;
-              }
-              case 2: {
-                // Restart at next hap or next cycle, whichever comes first
-                const haps = pat.queryArc(T, nextCycle).filter((h) => Number(h.part.begin) !== T);
-                state[key] = haps.length ? Number(haps[0].part.begin) : nextCycle;
-                break;
-              }
-            }
-          } else {
-            prev[key] = state[key];
-          }
-        }, false)
-        // Add labels
-        .withValue((v) => ({ ...v, timeline: id, offset: t }))
-    );
-  });
-
   // set pattern methods that use this repl via closure
   const injectPatternMethods = () => {
     Pattern.prototype.p = function (id) {
@@ -266,7 +199,6 @@ export function repl({
       setcps: setCps,
       setCpm,
       setcpm: setCpm,
-      timeline,
     });
   };
 

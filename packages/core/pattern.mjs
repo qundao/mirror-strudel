@@ -8,6 +8,7 @@ import TimeSpan from './timespan.mjs';
 import Fraction, { isFraction, lcm } from './fraction.mjs';
 import Hap from './hap.mjs';
 import State from './state.mjs';
+import { getTime } from './time.mjs';
 import { unionWithObj } from './value.mjs';
 
 import {
@@ -3533,3 +3534,76 @@ export const morph = (frompat, topat, bypat) => {
   bypat = reify(bypat);
   return frompat.innerBind((from) => topat.innerBind((to) => bypat.innerBind((by) => _morph(from, to, by))));
 };
+
+const TIMELINES = {
+  currentOffsets: {},
+  previousOffsets: {},
+};
+
+/**
+ * Aligns the pattern with the specified `timeline` by ID.
+ *
+ * More specifically, if a timeline ID is encountered for the first time, that moment
+ * in time is marked as the "start" of that pattern. Thereafter, any other patterns aligned
+ * with that same id will begin at that same moment in time.
+ *
+ * If a negative ID is supplied, the timeline will reset at the start of the next cycle.
+ *
+ * @param {number | Pattern} id Timeline id. Must be a number. Set to negative to reset the timeline.
+ * @returns Pattern
+ * @example
+ * s("tri").seg(8).n(irand(12)).scale("G#:minor").lpf(400).room(2)
+ *   .timeline("<1 -1 1 2>")
+ */
+const timeline = register('timeline', (id, pat) => {
+  // TODO: This is only included to demonstrate the possible options. We should pick one
+  // before merging
+  const behavior = 0;
+  if (typeof id !== 'number') {
+    logger(`[query] ${id} is not a valid timeline id. Please ensure it is a number. Defaulting to timeline 1.`);
+    id = 1;
+  }
+  const { currentOffsets: state, previousOffsets: prev } = TIMELINES;
+  const key = Math.abs(id);
+  // For negative id we just let the pattern run without resetting, hence tracking `prev`
+  let t = id < 0 ? prev[key] : state[key];
+  // We default here instead of updating `state` to prevent the `draw` functions from
+  // interfering with `state` when querying
+  t ??= Math.ceil(getTime());
+  return (
+    pat
+      .late(t)
+      .onTrigger((hap) => {
+        const T = Number(hap.part.begin);
+        // Set state on the first trigger
+        state[key] ??= T;
+        prev[key] ??= T;
+        if (id < 0) {
+          // Restart on next cycle
+          const nextCycle = Math.floor(T) + 1;
+          switch (behavior) {
+            case 0: {
+              // Restart at start of next cycle
+              state[key] = nextCycle;
+              break;
+            }
+            case 1: {
+              // Restart immediately
+              state[key] = T;
+              break;
+            }
+            case 2: {
+              // Restart at next hap or next cycle, whichever comes first
+              const haps = pat.queryArc(T, nextCycle).filter((h) => Number(h.part.begin) !== T);
+              state[key] = haps.length ? Number(haps[0].part.begin) : nextCycle;
+              break;
+            }
+          }
+        } else {
+          prev[key] = state[key];
+        }
+      }, false)
+      // Add labels
+      .withValue((v) => ({ ...v, timeline: id, offset: t }))
+  );
+});

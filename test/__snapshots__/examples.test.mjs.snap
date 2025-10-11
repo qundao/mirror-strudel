@@ -10844,6 +10844,8 @@ exports[`runs examples > example "take" example index 2 1`] = `
 ]
 `;
 
+exports[`runs examples > example "timeline" example index 0 1`] = `[]`;
+
 exports[`runs examples > example "tour" example index 0 1`] = `
 [
   "[ 0/1 → 1/8 | note:e s:folkharp ]",
