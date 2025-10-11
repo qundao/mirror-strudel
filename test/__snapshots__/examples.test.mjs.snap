@@ -10846,6 +10846,21 @@ exports[`runs examples > example "take" example index 2 1`] = `
 
 exports[`runs examples > example "timeline" example index 0 1`] = `[]`;
 
+exports[`runs examples > example "timeline" example index 1 1`] = `
+[
+  "[ 0/1 → 4/7 | note:F3 ]",
+  "[ (4/7 → 1/1) ⇝ 8/7 | note:G3 ]",
+  "[ 4/7 ⇜ (1/1 → 8/7) | note:G3 ]",
+  "[ 8/7 → 12/7 | note:Ab3 ]",
+  "[ (12/7 → 2/1) ⇝ 16/7 | note:Bb3 ]",
+  "[ 12/7 ⇜ (2/1 → 16/7) | note:Bb3 ]",
+  "[ 16/7 → 20/7 | note:C4 ]",
+  "[ (20/7 → 3/1) ⇝ 24/7 | note:Db4 ]",
+  "[ 20/7 ⇜ (3/1 → 24/7) | note:Db4 ]",
+  "[ 24/7 → 4/1 | note:Eb4 ]",
+]
+`;
+
 exports[`runs examples > example "tour" example index 0 1`] = `
 [
   "[ 0/1 → 1/8 | note:e s:folkharp ]",

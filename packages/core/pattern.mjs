@@ -3535,7 +3535,7 @@ export const morph = (frompat, topat, bypat) => {
   return frompat.innerBind((from) => topat.innerBind((to) => bypat.innerBind((by) => _morph(from, to, by))));
 };
 
-const TIMELINES = {
+export const TIMELINES = {
   currentOffsets: {},
   previousOffsets: {},
 };
@@ -3554,10 +3554,15 @@ const TIMELINES = {
  * @example
  * s("tri").seg(8).n(irand(12)).scale("G#:minor").lpf(400).room(2)
  *   .timeline("<1 -1 1 2>")
+ * @example
+ * $: n("[0 .. 6]/4").scale("F:minor")
+ * // Execute the following line at any point in the session
+ * // and it will always start on note 0
+ * // $: n("[0 .. 6]/4").scale("F:minor").timeline(2)
  */
 const timeline = register('timeline', (id, pat) => {
-  // TODO: This is only included to demonstrate the possible options. We should pick one
-  // before merging
+  // TODO: This hard-coding of `behavior` and the switch below are only included to demonstrate
+  // the possible reset options. We should pick one before merging
   const behavior = 0;
   if (typeof id !== 'number') {
     logger(`[query] ${id} is not a valid timeline id. Please ensure it is a number. Defaulting to timeline 1.`);
