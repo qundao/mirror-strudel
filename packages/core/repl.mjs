@@ -54,8 +54,8 @@ export function repl({
       onToggle?.(started);
       if (!started) {
         // Reset timeline state
-        TIMELINES.currentOffsets = {};
-        TIMELINES.polarity = {};
+        TIMELINES.state = {};
+        TIMELINES.polarities = {};
       }
     },
     setInterval,

@@ -3536,8 +3536,8 @@ export const morph = (frompat, topat, bypat) => {
 };
 
 export const TIMELINES = {
-  currentOffsets: {},
-  polarity: {},
+  state: {},
+  polarities: {},
 };
 
 /**
@@ -3547,8 +3547,7 @@ export const TIMELINES = {
  * in time is marked as the "start" of that pattern. Thereafter, any other patterns aligned
  * with that same id will begin at that same moment in time.
  *
- * If the sign of the id changes (positive to negative or vice versa), we reset the timeline at the
- * beginning of the next cycle.
+ * If the sign of the id changes (positive to negative or vice versa), we reset the timeline.
  *
  * @param {number | Pattern} id Timeline id. Must be a non-zero number. Switch signs to reset.
  * @returns Pattern
@@ -3568,12 +3567,11 @@ export const timeline = register('timeline', (id, pat) => {
     );
     id = 1;
   }
-  const { currentOffsets: state, polarity } = TIMELINES;
+  const { state, polarities } = TIMELINES;
   const key = Math.abs(id);
-  let t = state[key];
-  // We default here instead of updating `state` to prevent the `draw` functions from
-  // interfering with `state` when querying
-  t ??= Math.ceil(getTime());
+  // We let the pattern run until the sign switches
+  const p = id > 0 ? 1 : -1;
+  let t = polarities[key] === p ? state[key] : Math.ceil(getTime());
   return (
     pat
       .late(t)
@@ -3581,14 +3579,11 @@ export const timeline = register('timeline', (id, pat) => {
         const T = Number(hap.part.begin);
         // Set state on the first trigger
         state[key] ??= T;
-        const p = id > 0 ? 1 : -1;
-        polarity[key] ??= p;
-        // TODO: decide if we want to put `p === -1 &&` in this conditional
-        if (polarity[key] !== p) {
-          // Restart on next cycle
-          state[key] = Math.floor(T) + 1;
+        polarities[key] ??= p;
+        if (polarities[key] !== p) {
+          state[key] = T;
         }
-        polarity[key] = p;
+        polarities[key] = p;
       }, false)
       // Add labels
       .withValue((v) => ({ ...v, timeline: id, offset: t }))
