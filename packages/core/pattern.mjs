@@ -964,25 +964,12 @@ export const arp = register(
 );
 
 /*
- * Takes a time duration followed by one or more patterns, and shifts the given patterns in time, so they are
- * distributed equally over the given time duration. They are then combined with the pattern 'weave' is called on, after it has been stretched out (i.e. slowed down by) the time duration.
- * @name weave
- * @memberof Pattern
- * @example pan(saw).weave(4, s("bd(3,8)"), s("~ sd"))
- * @example n("0 1 2 3 4 5 6 7").weave(8, s("bd(3,8)"), s("~ sd"))
-
-addToPrototype('weave', function (t, ...pats) {
-  return this.weaveWith(t, ...pats.map((x) => set.out(x)));
-});
-
-*/
-/*
  * Like 'weave', but accepts functions rather than patterns, which are applied to the pattern.
  * @name weaveWith
  * @memberof Pattern
+ */
 
-addToPrototype('weaveWith', function (t, ...funcs) {
-  const pat = this;
+export const weaveWith = register('weaveWith', function (t, funcs, pat) {
   const l = funcs.length;
   t = Fraction(t);
   if (l == 0) {
@@ -990,7 +977,21 @@ addToPrototype('weaveWith', function (t, ...funcs) {
   }
   return stack(...funcs.map((func, i) => pat.inside(t, func).early(Fraction(i).div(l))))._slow(t);
 });
-*/
+
+/*
+ * Takes a time duration followed by one or more patterns, and shifts the given patterns in time, so they are
+ * distributed equally over the given time duration. They are then combined with the pattern 'weave' is called on, after it has been stretched out (i.e. slowed down by) the time duration.
+ * @name weave
+ * @memberof Pattern
+ * @example pan(saw).weave(4, [s("bd(3,8)"), s("~ sd")])
+ * @example n("0 1 2 3 4 5 6 7").weave(8, [s("bd(3,8)"), s("~ sd")])
+ */
+export const weave = register('weave', function (t, pats, pat) {
+  return pat.weaveWith(
+    t,
+    pats.map((x) => (y) => y.set.out(x)),
+  );
+});
 
 //////////////////////////////////////////////////////////////////////
 // compose matrix functions
