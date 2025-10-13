@@ -117,7 +117,7 @@ export function SettingsTab({ started }) {
   const canChangeAudioDevice = AudioContext.prototype.setSinkId != null;
   return (
     <div className="text-foreground p-4 space-y-4 w-full" style={{ fontFamily }}>
-      {canChangeAudioDevice && (
+      
         <FormItem label="Audio Output Device">
           <AudioDeviceSelector
             isDisabled={started}
@@ -132,7 +132,6 @@ export function SettingsTab({ started }) {
             }}
           />
         </FormItem>
-      )}
       <FormItem label="Audio Engine Target">
         <AudioEngineTargetSelector
           target={audioEngineTarget}
