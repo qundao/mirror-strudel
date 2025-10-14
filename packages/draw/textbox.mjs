@@ -6,7 +6,12 @@ export function textbox({ haps, ctx, id, margin = 10, fontsize = 24 } = {}) {
   const h = ctx.canvas.height;
   ctx.clearRect(0, 0, w, h);
   const color = getTheme().foreground;
+  const centerX = w / 2;
+  const centerY = h / 2;
 
+  if (id) {
+    haps = haps.filter((hap) => hap.hasTag(id));
+  }
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.globalAlpha = 1;
@@ -30,21 +35,13 @@ export function textbox({ haps, ctx, id, margin = 10, fontsize = 24 } = {}) {
 
 Pattern.prototype.textbox = function (options = {}) {
   let { ctx = getDrawContext(), id = 1 } = options;
-  this.draw(
-    (haps, time) => {
-      textbox({
-        ...options,
-        time,
-        ctx,
-        haps: haps.filter((hap) => hap.isActive(time)),
-      });
-    },
-    {
-      lookbehind: 0,
-      lookahead: 0,
+  return this.tag(id).onPaint((_, time, haps) =>
+    textbox({
+      ...options,
+      time,
+      ctx,
+      haps: haps.filter((hap) => hap.isActive(time)),
       id,
-    },
+    }),
   );
-
-  return this;
 };
