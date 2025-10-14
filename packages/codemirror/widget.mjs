@@ -140,3 +140,9 @@ registerWidget('_spectrum', (id, options = {}, pat) => {
   const ctx = getCanvasWidget(id, options).getContext('2d');
   return pat.spectrum({ ...options, ctx, id });
 });
+
+registerWidget('_textbox', (id, options = {}, pat) => {
+  options = { width: 500, height: 30, ...options };
+  const ctx = getCanvasWidget(id, options).getContext('2d');
+  return pat.textbox({ ...options, ctx, id });
+});
