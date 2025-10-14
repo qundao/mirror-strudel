@@ -1,6 +1,7 @@
 ---
 import HeadCommon from '../components/HeadCommon.astro';
 import { Vinyl } from '../components/Vinyl.jsx';
+import Tap from '../components/Tap.jsx';
 ---
 
 <html lang="en" class="m-0 dark">
@@ -11,5 +12,6 @@ import { Vinyl } from '../components/Vinyl.jsx';
   <body class="h-app-height bg-background m-0">
     <div>Hello there.</div>
     <Vinyl client:only="react" />
+    <Tap client:only="react" />
   </body>
 </html>
