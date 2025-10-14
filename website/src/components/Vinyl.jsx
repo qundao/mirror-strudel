@@ -32,8 +32,7 @@ export function Vinyl() {
       cyclist.start();
       // cyclist.setPattern(saw.segment(8));
     }
-  }
-  else {
+  } else {
     cyclist.stop();
   }
 

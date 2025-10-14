@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from 'react';
 
-export default function Tap({ initialCps = 0.4, maxSamples = 3}) {
+export default function Tap({ initialCps = 0.4, maxSamples = 3 }) {
   const [timestamps, setTimestamps] = useState([]);
   const [cps, setCps] = useState(initialCps);
 
   function addTap(ts = Date.now()) {
-    setTimestamps(prev => {
+    setTimestamps((prev) => {
       const next = [...prev, ts].slice(-(maxSamples + 1));
       calcCps(next);
       return next;
@@ -38,16 +38,16 @@ export default function Tap({ initialCps = 0.4, maxSamples = 3}) {
 
   useEffect(() => {
     function onKey(e) {
-      if (e.code === "Space") {
+      if (e.code === 'Space') {
         e.preventDefault();
         addTap();
-      } else if (e.code === "Backspace") {
+      } else if (e.code === 'Backspace') {
         e.preventDefault();
         reset();
       }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   function reset() {
@@ -55,14 +55,11 @@ export default function Tap({ initialCps = 0.4, maxSamples = 3}) {
     // setCps(initialCps);
   }
 
-
   return (
     <div>
       <div class="flex flex-col items-center p-7 font-medium text-white">
         <div>{cps.toFixed(2)} cps</div>
-        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          onClick={handleTap}
-          >
+        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" onClick={handleTap}>
           Tap
         </button>
       </div>
