@@ -18,7 +18,7 @@ export function logger(message, type, data = {}) {
   }
   lastMessage = message;
   lastTime = t;
-  console.log(`%c${message}`, 'background-color: black;color:white;border-radius:15px');
+  console.log(`${t} %c${message}`, 'background-color: black;color:white;border-radius:15px');
   if (typeof document !== 'undefined' && typeof CustomEvent !== 'undefined') {
     document.dispatchEvent(
       new CustomEvent(logKey, {

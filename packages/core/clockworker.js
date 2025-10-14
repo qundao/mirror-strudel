@@ -12,6 +12,8 @@ function getTime() {
 let num_cycles_at_cps_change = 0;
 let num_ticks_since_cps_change = 0;
 let num_seconds_at_cps_change = 0;
+let max_cycle = null;
+
 let cps = 0.5;
 // {id: {started: boolean}}
 const clients = new Map();
@@ -39,6 +41,7 @@ const sendTick = (phase, duration, tick, time) => {
     cps,
     time,
     cycle,
+    max_cycle,
   });
   num_ticks_since_cps_change++;
 };
@@ -60,9 +63,10 @@ const stopClock = async (id) => {
 
   const otherClientStarted = Array.from(clients.values()).some((c) => c.started);
   //dont stop the clock if other instances are running...
-  if (!started || otherClientStarted) {
-    return;
-  }
+  // actually do stop it
+  // if (!started || otherClientStarted) {
+  //   return;
+  // }
 
   clock.stop();
   setCycle(0);
@@ -72,6 +76,10 @@ const stopClock = async (id) => {
 const setCycle = (cycle) => {
   num_ticks_since_cps_change = 0;
   num_cycles_at_cps_change = cycle;
+};
+
+const setMaxCycle = (cycle) => {
+  max_cycle = cycle;
 };
 
 const processMessage = (message) => {
@@ -90,6 +98,10 @@ const processMessage = (message) => {
     }
     case 'setcycle': {
       setCycle(payload.cycle);
+      break;
+    }
+    case 'setmaxcycle': {
+      setMaxCycle(payload.maxcycle);
       break;
     }
     case 'toggle': {

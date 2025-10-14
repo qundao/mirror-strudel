@@ -14,7 +14,7 @@ export class Cyclist {
     onToggle,
     onError,
     getTime,
-    latency = 0.1,
+    latency = 0.03,
     setInterval,
     clearInterval,
     beforeStart,
