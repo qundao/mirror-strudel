@@ -322,6 +322,6 @@ export async function onTriggerSynth(t, value, tables, cps, frameLen) {
     node.disconnect();
     wtPosModulators?.disconnect();
     wtWarpModulators?.disconnect();
-  }
+  };
   return handle;
 }

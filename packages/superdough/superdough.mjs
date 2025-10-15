@@ -7,9 +7,18 @@ This program is free software: you can redistribute it and/or modify it under th
 import './feedbackdelay.mjs';
 import './reverb.mjs';
 import './vowel.mjs';
-import { _mod, cycleToSeconds } from './util.mjs';
+import { _mod, clamp, cycleToSeconds } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
-import { createFilter, gainNode, getCompressor, getDistortion, getLfo, getWorklet, effectSend } from './helpers.mjs';
+import {
+  createFilter,
+  gainNode,
+  getCompressor,
+  getDistortion,
+  getLfo,
+  getWorklet,
+  effectSend,
+  webAudioTimeout,
+} from './helpers.mjs';
 import { map } from 'nanostores';
 import { logger } from './logger.mjs';
 import { loadBuffer } from './sampler.mjs';
@@ -296,22 +305,19 @@ function getPhaser(time, end, frequency = 1, depth = 0.5, centerFrequency = 1000
   const ac = getAudioContext();
   const lfoGain = getLfo(ac, time, end, { frequency, depth: sweep * 2 });
 
-  // filters
-  const numStages = 8; // num of filters in series
+  //filters
+  const numStages = 2; //num of filters in series
   let fOffset = 0;
   const filterChain = [];
-  const fMin = centerFrequency * 0.5,
-    fMax = centerFrequency;
-  const ratio = Math.pow(fMax / fMin, 1 / numStages);
   for (let i = 0; i < numStages; i++) {
     const filter = ac.createBiquadFilter();
-    filter.type = 'allpass';
+    filter.type = 'notch';
     filter.gain.value = 1;
-    filter.frequency.value = fMin * Math.pow(ratio, i + 0.5);
-    filter.Q.value = 2 - clamp(depth * 2, 0, 1.9);
+    filter.frequency.value = centerFrequency + fOffset;
+    filter.Q.value = 2 - Math.min(Math.max(depth * 2, 0), 1.9);
 
     lfoGain.connect(filter.detune);
-    fOffset += 4;
+    fOffset += 282;
     if (i > 0) {
       filterChain[i - 1].connect(filter);
     }
@@ -617,8 +623,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     fx.coarse !== undefined && chain.push(getWorklet(ac, 'coarse-processor', { coarse: fx.coarse }));
     fx.crush !== undefined && chain.push(getWorklet(ac, 'crush-processor', { crush: fx.crush }));
     fx.shape !== undefined && chain.push(getWorklet(ac, 'shape-processor', { shape: fx.shape, postgain: shapevol }));
-    fx.distort !== undefined &&
-      chain.push(getWorklet(ac, 'distort-processor', { distort: fx.distort, postgain: distortvol }));
+    fx.distort !== undefined && chain.push(getDistortion(fx.distort, distortvol, fx.distorttype));
 
     let tremolo = fx.tremolo;
     if (fx.tremolosync != null) {
