@@ -5,7 +5,6 @@ import { errorLogger, logger } from './logger.mjs';
 import { setTime } from './time.mjs';
 import { evalScope } from './evaluate.mjs';
 import { register, Pattern, isPattern, silence, stack } from './pattern.mjs';
-import { SalatRepl } from '@kabelsalat/web';
 
 export function repl({
   defaultOutput,
@@ -24,7 +23,6 @@ export function repl({
   id,
   mondo = false,
 }) {
-  const kabel = new SalatRepl({ localScope: true });
   const state = {
     schedulerError: undefined,
     evalError: undefined,
@@ -76,6 +74,14 @@ export function repl({
     return silence;
   };
 
+  // helper to get a patternified pure value out
+  function unpure(pat) {
+    if (pat._Pattern) {
+      return pat.__pure;
+    }
+    return pat;
+  }
+
   const setPattern = async (pattern, autostart = true) => {
     pattern = editPattern?.(pattern) || pattern;
     await scheduler.setPattern(pattern, autostart);
@@ -87,7 +93,10 @@ export function repl({
   const start = () => scheduler.start();
   const pause = () => scheduler.pause();
   const toggle = () => scheduler.toggle();
-  const setCps = (cps) => scheduler.setCps(cps);
+  const setCps = (cps) => {
+    scheduler.setCps(unpure(cps));
+    return silence;
+  };
 
   /**
    * Changes the global tempo to the given cycles per minute
@@ -99,7 +108,10 @@ export function repl({
    * setcpm(140/4) // =140 bpm in 4/4
    * $: s("bd*4,[- sd]*2").bank('tr707')
    */
-  const setCpm = (cpm) => scheduler.setCps(cpm / 60);
+  const setCpm = (cpm) => {
+    scheduler.setCps(unpure(cpm) / 60);
+    return silence;
+  };
 
   // TODO - not documented as jsdoc examples as the test framework doesn't simulate enough context for `each` and `all`..
 
@@ -131,11 +143,6 @@ export function repl({
   const each = function (transform) {
     eachTransform = transform;
     return silence;
-  };
-
-  const compileKabel = (code) => {
-    const node = kabel.evaluate(code);
-    return node.compile({ log: false });
   };
 
   // set pattern methods that use this repl via closure
@@ -187,7 +194,6 @@ export function repl({
       setcps: setCps,
       setCpm,
       setcpm: setCpm,
-      compileKabel,
     });
   };
 
@@ -208,7 +214,10 @@ export function repl({
       }
       let { pattern, meta } = await _evaluate(code, transpiler, transpilerOptions);
       if (Object.keys(pPatterns).length) {
-        let patterns = Object.values(pPatterns);
+        let patterns = [];
+        for (const [key, value] of Object.entries(pPatterns)) {
+          patterns.push(value.withState((state) => state.setControls({ id: key })));
+        }
         if (eachTransform) {
           // Explicit lambda so only element (not index and array) are passed
           patterns = patterns.map((x) => eachTransform(x));
@@ -222,6 +231,7 @@ export function repl({
           pattern = allTransforms[i](pattern);
         }
       }
+
       if (!isPattern(pattern)) {
         const message = `got "${typeof evaluated}" instead of pattern`;
         throw new Error(message + (typeof evaluated === 'function' ? ', did you forget to call a function?' : '.'));

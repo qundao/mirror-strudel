@@ -5,7 +5,7 @@ This program is free software: you can redistribute it and/or modify it under th
 */
 
 import TimeSpan from './timespan.mjs';
-import Fraction, { lcm } from './fraction.mjs';
+import Fraction, { isFraction, lcm } from './fraction.mjs';
 import Hap from './hap.mjs';
 import State from './state.mjs';
 import { unionWithObj } from './value.mjs';
@@ -98,10 +98,7 @@ export class Pattern {
 
   // runs func on query state
   withState(func) {
-    return this.withHaps((haps, state) => {
-      func(state);
-      return haps;
-    });
+    return new Pattern((state) => this.query(func(state)));
   }
 
   /**
@@ -999,7 +996,7 @@ addToPrototype('weaveWith', function (t, ...funcs) {
 // compose matrix functions
 
 function _nonArrayObject(x) {
-  return !Array.isArray(x) && typeof x === 'object';
+  return !Array.isArray(x) && typeof x === 'object' && !isFraction(x);
 }
 function _composeOp(a, b, func) {
   if (_nonArrayObject(a) || _nonArrayObject(b)) {
@@ -3563,23 +3560,74 @@ Pattern.prototype.FX = function (...effects) {
 };
 
 /**
- * Creates a worklet effect. Typically derived by writing K(...) in the REPL which will parse
- * Kabelsalat code.
+ * Soft-clipping distortion
  *
- * @name worklet
- * @param {string} src Source code of the worklet update function
- * @param {...number | ...Pattern} inputs Worklet inputs
- * @memberof Pattern
- * @returns Pattern
+ * @name soft
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
  */
-Pattern.prototype.worklet = function (src, ...inputs) {
-  inputs = inputs.map(reify);
-  return this.outerBind((v) => {
-    return _asArrayPattern(inputs).withValue((vInput) => {
-      const currInputs = v.workletInputs ?? [];
-      return { ...v, workletSrc: src, workletInputs: currInputs.concat(vInput) };
-    });
-  });
-};
-
-export const worklet = (...args) => pure(0).worklet(...args);
+/**
+ * Hard-clipping distortion
+ *
+ * @name hard
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+/**
+ * Cubic polynomial distortion
+ *
+ * @name cubic
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+/**
+ * Diode-emulating distortion
+ *
+ * @name diode
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+/**
+ * Asymmetrical diode distortion
+ *
+ * @name asym
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+/**
+ * Wavefolding distortion
+ *
+ * @name fold
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+/**
+ * Wavefolding distortion composed with sinusoid
+ *
+ * @name sinefold
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+/**
+ * Distortion via Chebyshev polynomials
+ *
+ * @name chebyshev
+ * @param {number | Pattern} distortion amount of distortion to apply
+ * @param {number | Pattern} volume linear postgain of the distortion
+ *
+ */
+const distAlgoNames = ['scurve', 'soft', 'hard', 'cubic', 'diode', 'asym', 'fold', 'sinefold', 'chebyshev'];
+for (const name of distAlgoNames) {
+  // Add aliases for distortion algorithms
+  Pattern.prototype[name] = function (args) {
+    const argsPat = reify(args).fmap((v) => (Array.isArray(v) ? [...v, name] : [v, 1, name]));
+    return this.distort(argsPat);
+  };
+}
