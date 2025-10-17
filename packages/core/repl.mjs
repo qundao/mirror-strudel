@@ -214,7 +214,10 @@ export function repl({
       }
       let { pattern, meta } = await _evaluate(code, transpiler, transpilerOptions);
       if (Object.keys(pPatterns).length) {
-        let patterns = Object.values(pPatterns);
+        let patterns = [];
+        for (const [key, value] of Object.entries(pPatterns)) {
+          patterns.push(value.withState((state) => state.setControls({ id: key })));
+        }
 
         // if there are solo patterns, only use those
         const soloPatterns = Object.entries(pPatterns).filter(([key]) => key.length > 1 && key.startsWith('S'));
@@ -222,6 +225,8 @@ export function repl({
           patterns = Object.values(Object.fromEntries(soloPatterns));
         }
 
+     
+    
         if (eachTransform) {
           // Explicit lambda so only element (not index and array) are passed
           patterns = patterns.map((x) => eachTransform(x));
@@ -235,6 +240,7 @@ export function repl({
           pattern = allTransforms[i](pattern);
         }
       }
+
       if (!isPattern(pattern)) {
         const message = `got "${typeof evaluated}" instead of pattern`;
         throw new Error(message + (typeof evaluated === 'function' ? ', did you forget to call a function?' : '.'));
