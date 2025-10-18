@@ -1050,14 +1050,15 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     return [
       { name: 'begin', defaultValue: 0, min: 0, max: Number.POSITIVE_INFINITY },
       { name: 'end', defaultValue: 0, min: 0, max: Number.POSITIVE_INFINITY },
-      { name: 'frequency', defaultValue: 220, minValue: 0.01, maxValue: 20000 },
-      { name: 'detune', defaultValue: 0.18 },
-      { name: 'position', defaultValue: 0, minValue: 0, maxValue: 1 },
-      { name: 'warp', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'frequency', defaultValue: 440, min: Number.EPSILON },
+      { name: 'detune', defaultValue: 0 },
+      { name: 'freqspread', defaultValue: 0.18, min: 0 },
+      { name: 'position', defaultValue: 0, min: 0, max: 1 },
+      { name: 'warp', defaultValue: 0, min: 0, max: 1 },
       { name: 'warpMode', defaultValue: 0 },
-      { name: 'voices', defaultValue: 1, minValue: 1, maxValue: 32 },
-      { name: 'spread', defaultValue: 0.7, minValue: 0, maxValue: 1 },
-      { name: 'phaserand', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'voices', defaultValue: 1, min: 1 },
+      { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
+      { name: 'phaserand', defaultValue: 0, min: 0, max: 1 },
     ];
   }
 
@@ -1235,10 +1236,12 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
   _sampleFrame(frame, phase) {
     const len = frame.length;
     const pos = phase * len;
-    const i = pos | 0;
+    let i = pos | 0;
+    if (i >= len) i = 0; // fast wrap
     const frac = pos - i;
     const a = frame[i];
-    const i1 = i + 1 < len ? i + 1 : 0; // fast wrap
+    let i1 = i + 1;
+    if (i1 >= len) i1 = 0;
     const b = frame[i1];
     return a + (b - a) * frac;
   }
@@ -1268,6 +1271,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     }
     for (let i = 0; i < outL.length; i++) {
       const detune = pv(parameters.detune, i);
+      const freqspread = pv(parameters.freqspread, i);
       const tablePos = clamp(pv(parameters.position, i), 0, 1);
       const idx = tablePos * (this.numFrames - 1);
       const fIdx = idx | 0;
@@ -1276,9 +1280,9 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       const warpMode = pv(parameters.warpMode, i);
       const voices = pv(parameters.voices, i);
       const phaseRand = clamp(pv(parameters.phaserand, i), 0, 1);
-      const spread = voices > 1 ? clamp(pv(parameters.spread, i), 0, 1) : 0;
-      const gain1 = Math.sqrt(0.5 - 0.5 * spread);
-      const gain2 = Math.sqrt(0.5 + 0.5 * spread);
+      const panspread = voices > 1 ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
+      const gain1 = Math.sqrt(0.5 - 0.5 * panspread);
+      const gain2 = Math.sqrt(0.5 + 0.5 * panspread);
       let f = pv(parameters.frequency, i);
       f = applySemitoneDetuneToFrequency(f, detune / 100); // overall detune
       const normalizer = 1 / Math.sqrt(voices);
@@ -1291,7 +1295,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
           gainL = gain2;
           gainR = gain1;
         }
-        const fVoice = applySemitoneDetuneToFrequency(f, getUnisonDetune(voices, detune, n)); // voice detune
+        const fVoice = applySemitoneDetuneToFrequency(f, getUnisonDetune(voices, freqspread, n)); // voice detune
         const dPhase = fVoice * this.invSR;
         const level = this._chooseMip(dPhase);
         const table = this.tables[level];
