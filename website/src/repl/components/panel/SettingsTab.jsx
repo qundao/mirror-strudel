@@ -6,7 +6,7 @@ import { ButtonGroup } from './Forms.jsx';
 import { AudioDeviceSelector } from './AudioDeviceSelector.jsx';
 import { AudioEngineTargetSelector } from './AudioEngineTargetSelector.jsx';
 import { confirmDialog } from '../../util.mjs';
-import { DEFAULT_MAX_POLYPHONY, setMaxPolyphony } from '@strudel/webaudio';
+import { DEFAULT_MAX_POLYPHONY, setMaxPolyphony, setMultiChannelOrbits } from '@strudel/webaudio';
 
 function Checkbox({ label, value, onChange, disabled = false }) {
   return (
@@ -74,6 +74,7 @@ const fontFamilyOptions = {
   FiraCode: 'FiraCode',
   'FiraCode-SemiBold': 'FiraCode SemiBold',
   teletext: 'teletext',
+  tic80: 'tic80',
   mode7: 'mode7',
   BigBlueTerminal: 'BigBlueTerminal',
   x3270: 'x3270',
@@ -108,6 +109,9 @@ export function SettingsTab({ started }) {
     audioEngineTarget,
     togglePanelTrigger,
     maxPolyphony,
+    multiChannelOrbits,
+    isTabIndentationEnabled,
+    isMultiCursorEnabled,
   } = useSettings();
   const shouldAlwaysSync = isUdels();
   const canChangeAudioDevice = AudioContext.prototype.setSinkId != null;
@@ -160,6 +164,22 @@ export function SettingsTab({ started }) {
           type="number"
           placeholder=""
           value={maxPolyphony ?? ''}
+        />
+      </FormItem>
+      <FormItem>
+        <Checkbox
+          label="Multi Channel Orbits"
+          onChange={(cbEvent) => {
+            const val = cbEvent.target.checked;
+            confirmDialog(RELOAD_MSG).then((r) => {
+              if (r == true) {
+                settingsMap.setKey('multiChannelOrbits', val);
+                setMultiChannelOrbits(val);
+                return window.location.reload();
+              }
+            });
+          }}
+          value={multiChannelOrbits}
         />
       </FormItem>
       <FormItem label="Theme">
@@ -246,6 +266,16 @@ export function SettingsTab({ started }) {
           value={isLineWrappingEnabled}
         />
         <Checkbox
+          label="Enable Tab indentation"
+          onChange={(cbEvent) => settingsMap.setKey('isTabIndentationEnabled', cbEvent.target.checked)}
+          value={isTabIndentationEnabled}
+        />
+        <Checkbox
+          label="Enable Multi-Cursor (Cmd/Ctrl+Click)"
+          onChange={(cbEvent) => settingsMap.setKey('isMultiCursorEnabled', cbEvent.target.checked)}
+          value={isMultiCursorEnabled}
+        />
+        <Checkbox
           label="Enable flashing on evaluation"
           onChange={(cbEvent) => settingsMap.setKey('isFlashEnabled', cbEvent.target.checked)}
           value={isFlashEnabled}
@@ -282,7 +312,8 @@ export function SettingsTab({ started }) {
           onClick={() => {
             confirmDialog('Sure?').then((r) => {
               if (r) {
-                settingsMap.set(defaultSettings);
+                const { userPatterns } = settingsMap.get(); // keep current patterns
+                settingsMap.set({ ...defaultSettings, userPatterns });
               }
             });
           }}

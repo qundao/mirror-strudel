@@ -1,68 +1,122 @@
 import jsdoc from '../../doc.json';
-// import { javascriptLanguage } from '@codemirror/lang-javascript';
 import { autocompletion } from '@codemirror/autocomplete';
 import { h } from './html';
 
-function plaintext(str) {
+const escapeHtml = (str) => {
   const div = document.createElement('div');
   div.innerText = str;
   return div.innerHTML;
-}
+};
 
-const getDocLabel = (doc) => doc.name || doc.longname;
-const getInnerText = (html) => {
-  var div = document.createElement('div');
+const stripHtml = (html) => {
+  const div = document.createElement('div');
   div.innerHTML = html;
   return div.textContent || div.innerText || '';
 };
 
-export function Autocomplete({ doc, label }) {
-  return h`<div class="prose dark:prose-invert max-h-[400px] overflow-auto p-2">
-<h1 class="pt-0 mt-0">${label || getDocLabel(doc)}</h1>
-${doc.description}
-<ul>
-  ${doc.params?.map(
-    ({ name, type, description }) =>
-      `<li>${name} : ${type.names?.join(' | ')} ${description ? ` - ${getInnerText(description)}` : ''}</li>`,
-  )}
-</ul>
-<div>
-  ${doc.examples?.map((example) => `<div><pre>${plaintext(example)}</pre></div>`)}
-</div>
-</div>`[0];
-  /*
-<pre
-className="cursor-pointer"
-onMouseDown={(e) => {
-  console.log('ola!');
-  navigator.clipboard.writeText(example);
-  e.stopPropagation();
-}}
->
-{example}
-</pre>
-*/
-}
+const getDocLabel = (doc) => doc.name || doc.longname;
 
-const jsdocCompletions = jsdoc.docs
-  .filter(
-    (doc) =>
-      getDocLabel(doc) &&
-      !getDocLabel(doc).startsWith('_') &&
-      !['package'].includes(doc.kind) &&
-      !['superdirtOnly', 'noAutocomplete'].some((tag) => doc.tags?.find((t) => t.originalTitle === tag)),
-  )
-  // https://codemirror.net/docs/ref/#autocomplete.Completion
-  .map((doc) /*: Completion */ => ({
-    label: getDocLabel(doc),
-    // detail: 'xxx', // An optional short piece of information to show (with a different style) after the label.
-    info: () => Autocomplete({ doc }),
-    type: 'function', // https://codemirror.net/docs/ref/#autocomplete.Completion.type
-  }));
+const buildParamsList = (params) =>
+  params?.length
+    ? `
+    <div class="autocomplete-info-params-section">
+      <h4 class="autocomplete-info-section-title">Parameters</h4>
+      <ul class="autocomplete-info-params-list">
+        ${params
+          .map(
+            ({ name, type, description }) => `
+          <li class="autocomplete-info-param-item">
+            <span class="autocomplete-info-param-name">${name}</span>
+            <span class="autocomplete-info-param-type">${type.names?.join(' | ')}</span>
+            ${description ? `<div class="autocomplete-info-param-desc">${stripHtml(description)}</div>` : ''}
+          </li>
+        `,
+          )
+          .join('')}
+      </ul>
+    </div>
+  `
+    : '';
 
-export const strudelAutocomplete = (context /* : CompletionContext */) => {
-  let word = context.matchBefore(/\w*/);
-  if (word.from == word.to && !context.explicit) return null;
+const buildExamples = (examples) =>
+  examples?.length
+    ? `
+    <div class="autocomplete-info-examples-section">
+      <h4 class="autocomplete-info-section-title">Examples</h4>
+      ${examples
+        .map(
+          (example) => `
+        <pre class="autocomplete-info-example-code">${escapeHtml(example)}</pre>
+      `,
+        )
+        .join('')}
+    </div>
+  `
+    : '';
+
+export const Autocomplete = (doc) =>
+  h`
+  <div class="autocomplete-info-container">
+    <div class="autocomplete-info-tooltip">
+      <h3 class="autocomplete-info-function-name">${getDocLabel(doc)}</h3>
+      ${doc.synonyms_text ? `<div class="autocomplete-info-function-synonyms">Synonyms: ${doc.synonyms_text}</div>` : ''}
+      ${doc.description ? `<div class="autocomplete-info-function-description">${doc.description}</div>` : ''}
+      ${buildParamsList(doc.params)}
+      ${buildExamples(doc.examples)}
+    </div>
+  </div>
+`[0];
+
+const isValidDoc = (doc) => {
+  const label = getDocLabel(doc);
+  return label && !label.startsWith('_') && !['package'].includes(doc.kind);
+};
+
+const hasExcludedTags = (doc) =>
+  ['superdirtOnly', 'noAutocomplete'].some((tag) => doc.tags?.find((t) => t.originalTitle === tag));
+
+export const getSynonymDoc = (doc, synonym) => {
+  const synonyms = doc.synonyms || [];
+  const docLabel = getDocLabel(doc);
+  // Swap `doc.name` in for `s` in the list of synonyms
+  const synonymsWithDoc = [docLabel, ...synonyms].filter((x) => x && x !== synonym);
+  return {
+    ...doc,
+    name: synonym,
+    longname: synonym,
+    synonyms: synonymsWithDoc,
+    synonyms_text: synonymsWithDoc.join(', '),
+  };
+};
+
+const jsdocCompletions = (() => {
+  const seen = new Set(); // avoid repetition
+  const completions = [];
+  for (const doc of jsdoc.docs) {
+    if (!isValidDoc(doc) || hasExcludedTags(doc)) continue;
+    const docLabel = getDocLabel(doc);
+    // Remove duplicates
+    const synonyms = doc.synonyms || [];
+    let labels = [docLabel, ...synonyms];
+    for (const label of labels) {
+      // https://codemirror.net/docs/ref/#autocomplete.Completion
+      if (label && !seen.has(label)) {
+        seen.add(label);
+        completions.push({
+          label,
+          info: () => Autocomplete(getSynonymDoc(doc, label)),
+          type: 'function', // https://codemirror.net/docs/ref/#autocomplete.Completion.type
+        });
+      }
+    }
+  }
+  return completions;
+})();
+
+export const strudelAutocomplete = (context) => {
+  const word = context.matchBefore(/\w*/);
+  if (word.from === word.to && !context.explicit) return null;
+
   return {
     from: word.from,
     options: jsdocCompletions,
@@ -74,11 +128,5 @@ export const strudelAutocomplete = (context /* : CompletionContext */) => {
   };
 };
 
-export function isAutoCompletionEnabled(on) {
-  return on
-    ? [
-        autocompletion({ override: [strudelAutocomplete] }),
-        //javascriptLanguage.data.of({ autocomplete: strudelAutocomplete }),
-      ]
-    : []; // autocompletion({ override: [] })
-}
+export const isAutoCompletionEnabled = (enabled) =>
+  enabled ? [autocompletion({ override: [strudelAutocomplete], closeOnBlur: false })] : [];

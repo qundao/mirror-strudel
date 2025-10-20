@@ -8,6 +8,15 @@ export const audioEngineTargets = {
   osc: 'osc',
 };
 
+export const soundFilterType = {
+  USER: 'user',
+  DRUMS: 'drums',
+  SAMPLES: 'samples',
+  SYNTHS: 'synths',
+  WAVETABLES: 'wavetables',
+  ALL: 'all',
+};
+
 export const defaultSettings = {
   activeFooter: 'intro',
   keybindings: 'codemirror',
@@ -21,12 +30,14 @@ export const defaultSettings = {
   isSyncEnabled: false,
   isLineWrappingEnabled: false,
   isPatternHighlightingEnabled: true,
+  isTabIndentationEnabled: false,
+  isMultiCursorEnabled: false,
   theme: 'strudelTheme',
   fontFamily: 'monospace',
   fontSize: 18,
   latestCode: '',
   isZen: false,
-  soundsFilter: 'all',
+  soundsFilter: soundFilterType.ALL,
   patternFilter: 'community',
   // panelPosition: window.innerWidth > 1000 ? 'right' : 'bottom', //FIX: does not work on astro
   panelPosition: 'right',
@@ -38,6 +49,7 @@ export const defaultSettings = {
   isButtonRowHidden: false,
   isCSSAnimationDisabled: false,
   maxPolyphony: 128,
+  multiChannelOrbits: false,
 };
 
 let search = null;
@@ -50,7 +62,7 @@ const settings_key = `strudel-settings${instance > 0 ? instance : ''}`;
 
 export const settingsMap = persistentMap(settings_key, defaultSettings);
 
-const parseBoolean = (booleanlike) => ([true, 'true'].includes(booleanlike) ? true : false);
+export const parseBoolean = (booleanlike) => ([true, 'true'].includes(booleanlike) ? true : false);
 
 export function useSettings() {
   const state = useStore(settingsMap);
@@ -76,11 +88,14 @@ export function useSettings() {
     isLineWrappingEnabled: parseBoolean(state.isLineWrappingEnabled),
     isFlashEnabled: parseBoolean(state.isFlashEnabled),
     isSyncEnabled: isUdels() ? true : parseBoolean(state.isSyncEnabled),
+    isTabIndentationEnabled: parseBoolean(state.isTabIndentationEnabled),
+    isMultiCursorEnabled: parseBoolean(state.isMultiCursorEnabled),
     fontSize: Number(state.fontSize),
     panelPosition: state.activeFooter !== '' && !isUdels() ? state.panelPosition : 'bottom', // <-- keep this 'bottom' where it is!
     isPanelPinned: parseBoolean(state.isPanelPinned),
     isPanelOpen: parseBoolean(state.isPanelOpen),
     userPatterns: userPatterns,
+    multiChannelOrbits: parseBoolean(state.multiChannelOrbits),
   };
 }
 
