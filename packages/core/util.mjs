@@ -1,6 +1,6 @@
 /*
 util.mjs - <short description TODO>
-Copyright (C) 2022 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/core/util.mjs>
+Copyright (C) 2022 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/core/util.mjs>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
@@ -8,12 +8,12 @@ import { logger } from './logger.mjs';
 
 // returns true if the given string is a note
 export const isNoteWithOctave = (name) => /^[a-gA-G][#bs]*[0-9]$/.test(name);
-export const isNote = (name) => /^[a-gA-G][#bsf]*[0-9]?$/.test(name);
+export const isNote = (name) => /^[a-gA-G][#bsf]*-?[0-9]?$/.test(name);
 export const tokenizeNote = (note) => {
   if (typeof note !== 'string') {
     return [];
   }
-  const [pc, acc = '', oct] = note.match(/^([a-gA-G])([#bsf]*)([0-9]*)$/)?.slice(1) || [];
+  const [pc, acc = '', oct] = note.match(/^([a-gA-G])([#bsf]*)(-?[0-9]*)$/)?.slice(1) || [];
   if (!pc) {
     return [];
   }
@@ -162,6 +162,7 @@ export const compose = (...funcs) => pipe(...funcs.reverse());
 // Removes 'None' values from given list
 export const removeUndefineds = (xs) => xs.filter((x) => x != undefined);
 
+// flattens by one level
 export const flatten = (arr) => [].concat(...arr);
 
 export const id = (a) => a;
@@ -237,6 +238,7 @@ export const splitAt = function (index, value) {
   return [value.slice(0, index), value.slice(index)];
 };
 
+// Uses the function f to combine the arrays xs, ys element-wise
 export const zipWith = (f, xs, ys) => xs.map((n, i) => f(n, ys[i]));
 
 export const pairs = function (xs) {
@@ -485,3 +487,13 @@ export function getCurrentKeyboardState() {
 //   }
 //   return lcm((x * y) / gcd(x, y), ...z);
 // };
+
+// Takes values -- typically derived from events, i.e. `hap`s -- and renders them
+// into a readable format
+export function stringifyValues(value, compact = false) {
+  return typeof value === 'object'
+    ? compact
+      ? JSON.stringify(value).slice(1, -1).replaceAll('"', '').replaceAll(',', ' ')
+      : JSON.stringify(value)
+    : value;
+}

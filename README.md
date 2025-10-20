@@ -1,8 +1,7 @@
 # strudel
 
-[![Strudel test status](https://github.com/tidalcycles/strudel/actions/workflows/test.yml/badge.svg)](https://github.com/tidalcycles/strudel/actions)
-
-An experiment in making a [Tidal](https://github.com/tidalcycles/tidal/) using web technologies. This software is a bit more stable now, but please continue to tread carefully.
+Live coding patterns on the web
+https://strudel.cc/
 
 - Try it here: <https://strudel.cc>
 - Docs: <https://strudel.cc/learn>
@@ -31,15 +30,13 @@ This project is organized into many [packages](./packages), which are also avail
 
 Read more about how to use these in your own project [here](https://strudel.cc/technical-manual/project-start).
 
+You will need to abide by the terms of the [GNU Affero Public Licence v3](LICENSE). As such, Strudel code can only be shared within free/open source projects under the same license -- see the license for details.
+
+Licensing info for the default sound banks can be found over on the [dough-samples](https://github.com/felixroos/dough-samples/blob/main/README.md) repository.
+
 ## Contributing
 
-There are many ways to contribute to this project! See [contribution guide](./CONTRIBUTING.md).
-
-<a href="https://github.com/tidalcycles/strudel/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=tidalcycles/strudel" />
-</a>
-
-Made with [contrib.rocks](https://contrib.rocks).
+There are many ways to contribute to this project! See [contribution guide](./CONTRIBUTING.md). You can find the full list of contributors [here](https://codeberg.org/uzu/strudel/activity/contributors).
 
 ## Community
 
@@ -48,3 +45,5 @@ There is a #strudel channel on the TidalCycles discord: <https://discord.com/inv
 You can also ask questions and find related discussions on the tidal club forum: <https://club.tidalcycles.org/>
 
 The discord and forum is shared with the haskell (tidal) and python (vortex) siblings of this project.
+
+We also have a mastodon account: <a rel="me" href="https://social.toplap.org/@strudel">social.toplap.org/@strudel</a>

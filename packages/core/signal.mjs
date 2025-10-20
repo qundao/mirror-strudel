@@ -1,11 +1,11 @@
 /*
 signal.mjs - continuous patterns
-Copyright (C) 2024 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/core/signal.mjs>
+Copyright (C) 2024 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/core/signal.mjs>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 import { Hap } from './hap.mjs';
-import { Pattern, fastcat, pure, register, reify, silence, stack } from './pattern.mjs';
+import { Pattern, fastcat, pure, register, reify, silence, stack, sequenceP } from './pattern.mjs';
 import Fraction from './fraction.mjs';
 
 import { id, keyAlias, getCurrentKeyboardState } from './util.mjs';
@@ -16,12 +16,9 @@ export function steady(value) {
 }
 
 export const signal = (func) => {
-  const query = (state) => [new Hap(undefined, state.span, func(state.span.midpoint()))];
+  const query = (state) => [new Hap(undefined, state.span, func(state.span.begin))];
   return new Pattern(query);
 };
-
-export const isaw = signal((t) => 1 - (t % 1));
-export const isaw2 = isaw.toBipolar();
 
 /**
  *  A sawtooth signal between 0 and 1.
@@ -36,13 +33,44 @@ export const isaw2 = isaw.toBipolar();
  *
  */
 export const saw = signal((t) => t % 1);
+
+/**
+ *  A sawtooth signal between -1 and 1 (like `saw`, but bipolar).
+ *
+ * @return {Pattern}
+ */
 export const saw2 = saw.toBipolar();
 
+/**
+ *  A sawtooth signal between 1 and 0 (like `saw`, but flipped).
+ *
+ * @return {Pattern}
+ * @example
+ * note("<c3 [eb3,g3] g2 [g3,bb3]>*8")
+ * .clip(isaw.slow(2))
+ * @example
+ * n(isaw.range(0,8).segment(8))
+ * .scale('C major')
+ *
+ */
+export const isaw = signal((t) => 1 - (t % 1));
+
+/**
+ *  A sawtooth signal between 1 and -1 (like `saw2`, but flipped).
+ *
+ * @return {Pattern}
+ */
+export const isaw2 = isaw.toBipolar();
+
+/**
+ *  A sine signal between -1 and 1 (like `sine`, but bipolar).
+ *
+ * @return {Pattern}
+ */
 export const sine2 = signal((t) => Math.sin(Math.PI * 2 * t));
 
 /**
  *  A sine signal between 0 and 1.
- *
  * @return {Pattern}
  * @example
  * n(sine.segment(16).range(0,15))
@@ -61,17 +89,28 @@ export const sine = sine2.fromBipolar();
  *
  */
 export const cosine = sine._early(Fraction(1).div(4));
+
+/**
+ *  A cosine signal between -1 and 1 (like `cosine`, but bipolar).
+ *
+ * @return {Pattern}
+ */
 export const cosine2 = sine2._early(Fraction(1).div(4));
 
 /**
  *  A square signal between 0 and 1.
- *
  * @return {Pattern}
  * @example
  * n(square.segment(4).range(0,7)).scale("C:minor")
  *
  */
 export const square = signal((t) => Math.floor((t * 2) % 2));
+
+/**
+ *  A square signal between -1 and 1 (like `square`, but bipolar).
+ *
+ * @return {Pattern}
+ */
 export const square2 = square.toBipolar();
 
 /**
@@ -82,9 +121,37 @@ export const square2 = square.toBipolar();
  * n(tri.segment(8).range(0,7)).scale("C:minor")
  *
  */
-export const tri = fastcat(isaw, saw);
-export const tri2 = fastcat(isaw2, saw2);
+export const tri = fastcat(saw, isaw);
 
+/**
+ *  A triangle signal between -1 and 1 (like `tri`, but bipolar).
+ *
+ * @return {Pattern}
+ */
+export const tri2 = fastcat(saw2, isaw2);
+
+/**
+ *  An inverted triangle signal between 1 and 0 (like `tri`, but flipped).
+ *
+ * @return {Pattern}
+ * @example
+ * n(itri.segment(8).range(0,7)).scale("C:minor")
+ *
+ */
+export const itri = fastcat(isaw, saw);
+
+/**
+ *  An inverted triangle signal between -1 and 1 (like `itri`, but bipolar).
+ *
+ * @return {Pattern}
+ */
+export const itri2 = fastcat(isaw2, saw2);
+
+/**
+ *  A signal representing the cycle time.
+ *
+ * @return {Pattern}
+ */
 export const time = signal(id);
 
 /**
@@ -158,7 +225,7 @@ const timeToRands = (t, n) => timeToRandsPrime(timeToIntSeed(t), n);
  * n(run(4)).scale("C4:pentatonic")
  * // n("0 1 2 3").scale("C4:pentatonic")
  */
-export const run = (n) => saw.range(0, n).floor().segment(n);
+export const run = (n) => saw.range(0, n).round().segment(n);
 
 /**
  * Creates a pattern from a binary number.
@@ -197,7 +264,7 @@ export const randrun = (n) => {
     const rands = timeToRands(t.floor().add(0.5), n);
     const nums = rands
       .map((n, i) => [n, i])
-      .sort((a, b) => a[0] > b[0] - a[0] < b[0])
+      .sort((a, b) => (a[0] > b[0]) - (a[0] < b[0]))
       .map((x) => x[1]);
     const i = t.cyclePos().mul(n).floor() % n;
     return nums[i];
@@ -210,26 +277,26 @@ const _rearrangeWith = (ipat, n, pat) => {
 };
 
 /**
- * @name shuffle
  * Slices a pattern into the given number of parts, then plays those parts in random order.
  * Each part will be played exactly once per cycle.
+ * @name shuffle
  * @example
  * note("c d e f").sound("piano").shuffle(4)
  * @example
- * note("c d e f".shuffle(4), "g").sound("piano")
+ * seq("c d e f".shuffle(4), "g").note().sound("piano")
  */
 export const shuffle = register('shuffle', (n, pat) => {
   return _rearrangeWith(randrun(n), n, pat);
 });
 
 /**
- * @name scramble
  * Slices a pattern into the given number of parts, then plays those parts at random. Similar to `shuffle`,
  * but parts might be played more than once, or not at all, per cycle.
+ * @name scramble
  * @example
  * note("c d e f").sound("piano").scramble(4)
  * @example
- * note("c d e f".scramble(4), "g").sound("piano")
+ * seq("c d e f".scramble(4), "g").note().sound("piano")
  */
 export const scramble = register('scramble', (n, pat) => {
   return _rearrangeWith(_irand(n)._segment(n), n, pat);
@@ -329,6 +396,10 @@ export const chooseInWith = (pat, xs) => {
  */
 export const choose = (...xs) => chooseWith(rand, xs);
 
+// todo: doc
+export const chooseIn = (...xs) => chooseInWith(rand, xs);
+export const chooseOut = choose;
+
 /**
  * Chooses from the given list of values (or patterns of values), according
  * to the pattern that the method is called on. The pattern should be in
@@ -364,19 +435,30 @@ export const chooseCycles = (...xs) => chooseInWith(rand.segment(1), xs);
 export const randcat = chooseCycles;
 
 const _wchooseWith = function (pat, ...pairs) {
+  // A list of patterns of values
   const values = pairs.map((pair) => reify(pair[0]));
+
+  // A list of weight patterns
   const weights = [];
-  let accum = 0;
+
+  let total = pure(0);
   for (const pair of pairs) {
-    accum += pair[1];
-    weights.push(accum);
+    // 'add' accepts either values or patterns of values here, so no need
+    // to explicitly reify
+    total = total.add(pair[1]);
+    // accumulate our list of weight patterns
+    weights.push(total);
   }
-  const total = accum;
+  // a pattern of lists of weights
+  const weightspat = sequenceP(weights);
+
+  // Takes a number from 0-1, returns a pattern of patterns of values
   const match = function (r) {
-    const find = r * total;
-    return values[weights.findIndex((x) => x > find, weights)];
+    const findpat = total.mul(r);
+    return weightspat.fmap((weights) => (find) => values[weights.findIndex((x) => x > find, weights)]).appLeft(findpat);
   };
-  return pat.fmap(match);
+  // This returns a pattern of patterns.. The innerJoin is in wchooseCycles
+  return pat.bind(match);
 };
 
 const wchooseWith = (...args) => _wchooseWith(...args).outerJoin();
@@ -398,18 +480,42 @@ export const wchoose = (...pairs) => wchooseWith(rand, ...pairs);
  * wchooseCycles(["bd",10], ["hh",1], ["sd",1]).s().fast(8)
  * @example
  * wchooseCycles(["bd bd bd",5], ["hh hh hh",3], ["sd sd sd",1]).fast(4).s()
+ * @example
+ * // The probability can itself be a pattern
+ * wchooseCycles(["bd(3,8)","<5 0>"], ["hh hh hh",3]).fast(4).s()
  */
 export const wchooseCycles = (...pairs) => _wchooseWith(rand.segment(1), ...pairs).innerJoin();
 
 export const wrandcat = wchooseCycles;
 
-// this function expects pat to be a pattern of floats...
-export const perlinWith = (pat) => {
-  const pata = pat.fmap(Math.floor);
-  const patb = pat.fmap((t) => Math.floor(t) + 1);
+function _perlin(t) {
+  let ta = Math.floor(t);
+  let tb = ta + 1;
   const smootherStep = (x) => 6.0 * x ** 5 - 15.0 * x ** 4 + 10.0 * x ** 3;
   const interp = (x) => (a) => (b) => a + smootherStep(x) * (b - a);
-  return pat.sub(pata).fmap(interp).appBoth(pata.fmap(timeToRand)).appBoth(patb.fmap(timeToRand));
+  const v = interp(t - ta)(timeToRand(ta))(timeToRand(tb));
+  return v;
+}
+export const perlinWith = (tpat) => {
+  return tpat.fmap(_perlin);
+};
+
+function _berlin(t) {
+  const prevRidgeStartIndex = Math.floor(t);
+  const nextRidgeStartIndex = prevRidgeStartIndex + 1;
+
+  const prevRidgeBottomPoint = timeToRand(prevRidgeStartIndex);
+  const nextRidgeTopPoint = timeToRand(nextRidgeStartIndex) + prevRidgeBottomPoint;
+
+  const currentPercent = (t - prevRidgeStartIndex) / (nextRidgeStartIndex - prevRidgeStartIndex);
+  const interp = (a, b, t) => {
+    return a + (b - a) * t;
+  };
+  return interp(prevRidgeBottomPoint, nextRidgeTopPoint, currentPercent) / 2;
+}
+
+export const berlinWith = (tpat) => {
+  return tpat.fmap(_berlin);
 };
 
 /**
@@ -422,6 +528,18 @@ export const perlinWith = (pat) => {
  *
  */
 export const perlin = perlinWith(time.fmap((v) => Number(v)));
+
+/**
+ * Generates a continuous pattern of [berlin noise](conceived by Jame Coyne and Jade Rowland as a joke but turned out to be surprisingly cool and useful,
+ * like perlin noise but with sawtooth waves), in the range 0..1.
+ *
+ * @name berlin
+ * @example
+ * // ascending arpeggios
+ * n("0!16".add(berlin.fast(4).mul(14))).scale("d:minor")
+ *
+ */
+export const berlin = berlinWith(time.fmap((v) => Number(v)));
 
 export const degradeByWith = register(
   'degradeByWith',
@@ -443,6 +561,9 @@ export const degradeByWith = register(
  * s("hh*8").degradeBy(0.2)
  * @example
  * s("[hh?0.2]*8")
+ * @example
+ * //beat generator
+ * s("bd").segment(16).degradeBy(.5).ribbon(16,1)
  */
 export const degradeBy = register(
   'degradeBy',

@@ -1,13 +1,13 @@
 import { evalScope, hash2code, logger } from '@strudel/core';
-import { settingPatterns, defaultAudioDeviceName } from '../settings.mjs';
-import { getAudioContext, initializeAudioOutput, setDefaultAudioContext, setVersionDefaults } from '@strudel/webaudio';
+import { settingPatterns } from '../settings.mjs';
+import { setVersionDefaults } from '@strudel/webaudio';
 import { getMetadata } from '../metadata_parser';
 import { isTauri } from '../tauri.mjs';
 import './Repl.css';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { $featuredPatterns, loadDBPatterns } from '@src/user_pattern_utils.mjs';
+import { $featuredPatterns /* , loadDBPatterns */ } from '@src/user_pattern_utils.mjs';
 
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(
@@ -16,9 +16,9 @@ export const supabase = createClient(
 );
 
 let dbLoaded;
-if (typeof window !== 'undefined') {
+/* if (typeof window !== 'undefined') {
   dbLoaded = loadDBPatterns();
-}
+} */
 
 export async function initCode() {
   // load code from url hash (either short hash from database or decode long hash)
@@ -84,6 +84,7 @@ export function loadModules() {
     import('@strudel/gamepad'),
     import('@strudel/motion'),
     import('@strudel/mqtt'),
+    import('@strudel/mondo'),
   ];
   if (isTauri()) {
     modules = modules.concat([
@@ -109,38 +110,56 @@ export function confirmDialog(msg) {
 }
 
 let lastShared;
-export async function shareCode(codeToShare) {
-  // const codeToShare = activeCode || code;
-  if (lastShared === codeToShare) {
-    logger(`Link already generated!`, 'error');
-    return;
-  }
 
-  confirmDialog(
-    'Do you want your pattern to be public? If no, press cancel and you will get just a private link.',
-  ).then(async (isPublic) => {
-    const hash = nanoid(12);
-    const shareUrl = window.location.origin + window.location.pathname + '?' + hash;
-    const { error } = await supabase.from('code_v1').insert([{ code: codeToShare, hash, ['public']: isPublic }]);
-    if (!error) {
-      lastShared = codeToShare;
-      // copy shareUrl to clipboard
-      if (isTauri()) {
-        await writeText(shareUrl);
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-      }
-      const message = `Link copied to clipboard: ${shareUrl}`;
-      alert(message);
-      // alert(message);
-      logger(message, 'highlight');
+//RIP due to SPAM
+// export async function shareCode(codeToShare) {
+//   // const codeToShare = activeCode || code;
+//   if (lastShared === codeToShare) {
+//     logger(`Link already generated!`, 'error');
+//     return;
+//   }
+
+//   confirmDialog(
+//     'Do you want your pattern to be public? If no, press cancel and you will get just a private link.',
+//   ).then(async (isPublic) => {
+//     const hash = nanoid(12);
+//     const shareUrl = window.location.origin + window.location.pathname + '?' + hash;
+//     const { error } = await supabase.from('code_v1').insert([{ code: codeToShare, hash, ['public']: isPublic }]);
+//     if (!error) {
+//       lastShared = codeToShare;
+//       // copy shareUrl to clipboard
+//       if (isTauri()) {
+//         await writeText(shareUrl);
+//       } else {
+//         await navigator.clipboard.writeText(shareUrl);
+//       }
+//       const message = `Link copied to clipboard: ${shareUrl}`;
+//       alert(message);
+//       // alert(message);
+//       logger(message, 'highlight');
+//     } else {
+//       console.log('error', error);
+//       const message = `Error: ${error.message}`;
+//       // alert(message);
+//       logger(message);
+//     }
+//   });
+// }
+
+export async function shareCode() {
+  try {
+    const shareUrl = window.location.href;
+    if (isTauri()) {
+      await writeText(shareUrl);
     } else {
-      console.log('error', error);
-      const message = `Error: ${error.message}`;
-      // alert(message);
-      logger(message);
+      await navigator.clipboard.writeText(shareUrl);
     }
-  });
+    const message = `Link copied to clipboard!`;
+    alert(message);
+    logger(message, 'highlight');
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 export const isIframe = () => window.location !== window.parent.location;
@@ -157,38 +176,6 @@ export const isUdels = () => {
     return false;
   }
   return window.top?.location?.pathname.includes('udels');
-};
-
-export const getAudioDevices = async () => {
-  await navigator.mediaDevices.getUserMedia({ audio: true });
-  let mediaDevices = await navigator.mediaDevices.enumerateDevices();
-  mediaDevices = mediaDevices.filter((device) => device.kind === 'audiooutput' && device.deviceId !== 'default');
-  const devicesMap = new Map();
-  devicesMap.set(defaultAudioDeviceName, '');
-  mediaDevices.forEach((device) => {
-    devicesMap.set(device.label, device.deviceId);
-  });
-  return devicesMap;
-};
-
-export const setAudioDevice = async (id) => {
-  let audioCtx = getAudioContext();
-  if (audioCtx.sinkId === id) {
-    return;
-  }
-  await audioCtx.suspend();
-  await audioCtx.close();
-  audioCtx = setDefaultAudioContext();
-  await audioCtx.resume();
-  const isValidID = (id ?? '').length > 0;
-  if (isValidID) {
-    try {
-      await audioCtx.setSinkId(id);
-    } catch {
-      logger('failed to set audio interface', 'warning');
-    }
-  }
-  initializeAudioOutput();
 };
 
 export function setVersionDefaultsFrom(code) {

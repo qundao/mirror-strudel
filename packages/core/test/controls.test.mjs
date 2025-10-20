@@ -1,6 +1,6 @@
 /*
 controls.test.mjs - <short description TODO>
-Copyright (C) 2023 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/core/test/controls.test.mjs>
+Copyright (C) 2023 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/core/test/controls.test.mjs>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
@@ -30,14 +30,14 @@ describe('controls', () => {
     expect(s(mini('bd').pan(1)).firstCycleValues).toEqual([{ s: 'bd', pan: 1 }]);
     expect(s(mini('bd:1').pan(1)).firstCycleValues).toEqual([{ s: 'bd', n: 1, pan: 1 }]);
   });
-  it('preserves tactus of the left pattern', () => {
-    expect(s(mini('bd cp mt').pan(mini('1 2 3 4'))).tactus).toEqual(Fraction(3));
+  it('preserves step count of the left pattern', () => {
+    expect(s(mini('bd cp mt').pan(mini('1 2 3 4')))._steps).toEqual(Fraction(3));
   });
-  it('preserves tactus of the right pattern for .out', () => {
-    expect(s(mini('bd cp mt').set.out(pan(mini('1 2 3 4')))).tactus).toEqual(Fraction(4));
+  it('preserves step count of the right pattern for .out', () => {
+    expect(s(mini('bd cp mt').set.out(pan(mini('1 2 3 4'))))._steps).toEqual(Fraction(4));
   });
-  it('combines tactus of the pattern for .mix as lcm', () => {
-    expect(s(mini('bd cp mt').set.mix(pan(mini('1 2 3 4')))).tactus).toEqual(Fraction(12));
+  it('combines step count of the pattern for .mix as lcm', () => {
+    expect(s(mini('bd cp mt').set.mix(pan(mini('1 2 3 4'))))._steps).toEqual(Fraction(12));
   });
   it('finds control name by alias', () => {
     expect(getControlName('lpf')).toEqual('cutoff');
