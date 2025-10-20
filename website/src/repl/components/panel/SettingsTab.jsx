@@ -74,6 +74,7 @@ const fontFamilyOptions = {
   FiraCode: 'FiraCode',
   'FiraCode-SemiBold': 'FiraCode SemiBold',
   teletext: 'teletext',
+  tic80: 'tic80',
   mode7: 'mode7',
   BigBlueTerminal: 'BigBlueTerminal',
   x3270: 'x3270',
@@ -109,6 +110,8 @@ export function SettingsTab({ started }) {
     togglePanelTrigger,
     maxPolyphony,
     multiChannelOrbits,
+    isTabIndentationEnabled,
+    isMultiCursorEnabled,
   } = useSettings();
   const shouldAlwaysSync = isUdels();
   const canChangeAudioDevice = AudioContext.prototype.setSinkId != null;
@@ -263,6 +266,16 @@ export function SettingsTab({ started }) {
           value={isLineWrappingEnabled}
         />
         <Checkbox
+          label="Enable Tab indentation"
+          onChange={(cbEvent) => settingsMap.setKey('isTabIndentationEnabled', cbEvent.target.checked)}
+          value={isTabIndentationEnabled}
+        />
+        <Checkbox
+          label="Enable Multi-Cursor (Cmd/Ctrl+Click)"
+          onChange={(cbEvent) => settingsMap.setKey('isMultiCursorEnabled', cbEvent.target.checked)}
+          value={isMultiCursorEnabled}
+        />
+        <Checkbox
           label="Enable flashing on evaluation"
           onChange={(cbEvent) => settingsMap.setKey('isFlashEnabled', cbEvent.target.checked)}
           value={isFlashEnabled}
@@ -299,7 +312,8 @@ export function SettingsTab({ started }) {
           onClick={() => {
             confirmDialog('Sure?').then((r) => {
               if (r) {
-                settingsMap.set(defaultSettings);
+                const { userPatterns } = settingsMap.get(); // keep current patterns
+                settingsMap.set({ ...defaultSettings, userPatterns });
               }
             });
           }}

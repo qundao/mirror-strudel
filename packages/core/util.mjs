@@ -8,12 +8,12 @@ import { logger } from './logger.mjs';
 
 // returns true if the given string is a note
 export const isNoteWithOctave = (name) => /^[a-gA-G][#bs]*[0-9]$/.test(name);
-export const isNote = (name) => /^[a-gA-G][#bsf]*[0-9]?$/.test(name);
+export const isNote = (name) => /^[a-gA-G][#bsf]*-?[0-9]?$/.test(name);
 export const tokenizeNote = (note) => {
   if (typeof note !== 'string') {
     return [];
   }
-  const [pc, acc = '', oct] = note.match(/^([a-gA-G])([#bsf]*)([0-9]*)$/)?.slice(1) || [];
+  const [pc, acc = '', oct] = note.match(/^([a-gA-G])([#bsf]*)(-?[0-9]*)$/)?.slice(1) || [];
   if (!pc) {
     return [];
   }
@@ -487,3 +487,13 @@ export function getCurrentKeyboardState() {
 //   }
 //   return lcm((x * y) / gcd(x, y), ...z);
 // };
+
+// Takes values -- typically derived from events, i.e. `hap`s -- and renders them
+// into a readable format
+export function stringifyValues(value, compact = false) {
+  return typeof value === 'object'
+    ? compact
+      ? JSON.stringify(value).slice(1, -1).replaceAll('"', '').replaceAll(',', ' ')
+      : JSON.stringify(value)
+    : value;
+}

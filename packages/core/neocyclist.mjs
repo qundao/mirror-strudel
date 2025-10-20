@@ -11,7 +11,6 @@ export class NeoCyclist {
   constructor({ onTrigger, onToggle, getTime }) {
     this.started = false;
     this.cps = 0.5;
-    this.lastTick = 0; // absolute time when last tick (clock callback) happened
     this.getTime = getTime; // get absolute time
     this.time_at_last_tick_message = 0;
     // the clock of the worker and the audio context clock can drift apart over time
@@ -39,8 +38,7 @@ export class NeoCyclist {
       if (this.started === false) {
         return;
       }
-
-      const haps = this.pattern.queryArc(begin, end, { _cps: this.cps });
+      const haps = this.pattern.queryArc(begin, end, { _cps: this.cps, cyclist: 'neocyclist' });
       haps.forEach((hap) => {
         if (hap.hasOnset()) {
           const timeUntilTrigger = cycleToSeconds(hap.whole.begin - this.cycle, this.cps);

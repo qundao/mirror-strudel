@@ -1,7 +1,7 @@
 import { NeoCyclist } from './neocyclist.mjs';
 import { Cyclist } from './cyclist.mjs';
 import { evaluate as _evaluate } from './evaluate.mjs';
-import { logger } from './logger.mjs';
+import { errorLogger, logger } from './logger.mjs';
 import { setTime } from './time.mjs';
 import { evalScope } from './evaluate.mjs';
 import { register, Pattern, isPattern, silence, stack } from './pattern.mjs';
@@ -74,6 +74,14 @@ export function repl({
     return silence;
   };
 
+  // helper to get a patternified pure value out
+  function unpure(pat) {
+    if (pat._Pattern) {
+      return pat.__pure;
+    }
+    return pat;
+  }
+
   const setPattern = async (pattern, autostart = true) => {
     pattern = editPattern?.(pattern) || pattern;
     await scheduler.setPattern(pattern, autostart);
@@ -85,7 +93,10 @@ export function repl({
   const start = () => scheduler.start();
   const pause = () => scheduler.pause();
   const toggle = () => scheduler.toggle();
-  const setCps = (cps) => scheduler.setCps(cps);
+  const setCps = (cps) => {
+    scheduler.setCps(unpure(cps));
+    return silence;
+  };
 
   /**
    * Changes the global tempo to the given cycles per minute
@@ -97,7 +108,10 @@ export function repl({
    * setcpm(140/4) // =140 bpm in 4/4
    * $: s("bd*4,[- sd]*2").bank('tr707')
    */
-  const setCpm = (cpm) => scheduler.setCps(cpm / 60);
+  const setCpm = (cpm) => {
+    scheduler.setCps(unpure(cpm) / 60);
+    return silence;
+  };
 
   // TODO - not documented as jsdoc examples as the test framework doesn't simulate enough context for `each` and `all`..
 
@@ -200,7 +214,10 @@ export function repl({
       }
       let { pattern, meta } = await _evaluate(code, transpiler, transpilerOptions);
       if (Object.keys(pPatterns).length) {
-        let patterns = Object.values(pPatterns);
+        let patterns = [];
+        for (const [key, value] of Object.entries(pPatterns)) {
+          patterns.push(value.withState((state) => state.setControls({ id: key })));
+        }
         if (eachTransform) {
           // Explicit lambda so only element (not index and array) are passed
           patterns = patterns.map((x) => eachTransform(x));
@@ -214,6 +231,7 @@ export function repl({
           pattern = allTransforms[i](pattern);
         }
       }
+
       if (!isPattern(pattern)) {
         const message = `got "${typeof evaluated}" instead of pattern`;
         throw new Error(message + (typeof evaluated === 'function' ? ', did you forget to call a function?' : '.'));
@@ -245,6 +263,7 @@ export function repl({
 export const getTrigger =
   ({ getTime, defaultOutput }) =>
   async (hap, deadline, duration, cps, t) => {
+    //   ^ this signature is different from hap.context.onTrigger, as set by Pattern.onTrigger(onTrigger)
     // TODO: get rid of deadline after https://codeberg.org/uzu/strudel/pulls/1004
     try {
       if (!hap.context.onTrigger || !hap.context.dominantTrigger) {
@@ -252,9 +271,9 @@ export const getTrigger =
       }
       if (hap.context.onTrigger) {
         // call signature of output / onTrigger is different...
-        await hap.context.onTrigger(getTime() + deadline, hap, getTime(), cps, t);
+        await hap.context.onTrigger(hap, getTime(), cps, t);
       }
     } catch (err) {
-      logger(`[cyclist] error: ${err.message}`, 'error');
+      errorLogger(err, 'getTrigger');
     }
   };
