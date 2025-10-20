@@ -42,6 +42,7 @@ lib['%'] = pace;
 lib['?'] = degradeBy; // todo: default 0.5 not working..
 lib[':'] = tail;
 lib['..'] = range;
+lib['def'] = () => silence;
 lib['or'] = (...children) => chooseIn(...children); // always has structure but is cyclewise.. e.g. "s oh*8.dec[.04 | .5]"
 //lib['or'] = (...children) => chooseOut(...children); // "s oh*8.dec[.04 | .5]" is better but "dec[.04 | .5].s oh*8" has no struct
 
@@ -84,7 +85,7 @@ function evaluator(node, scope) {
   let pat;
   if (type === 'plain' && typeof variable !== 'undefined') {
     // some function names are not patternable, so we skip reification here
-    if (['!', 'extend', '@', 'expand', 'square', 'angle'].includes(value)) {
+    if (['!', 'extend', '@', 'expand', 'square', 'angle', 'all', 'setcpm', 'setcps'].includes(value)) {
       return variable;
     }
     pat = reify(variable);
@@ -107,7 +108,7 @@ export function mondo(code, offset = 0) {
   return pat.markcss('color: var(--caret,--foreground);text-decoration:underline');
 }
 
-let getLocations = (code, offset) => runner.parser.get_locations(code, offset);
+export let getLocations = (code, offset) => runner.parser.get_locations(code, offset);
 
 export const mondi = (str, offset) => {
   const code = `[${str}]`;
