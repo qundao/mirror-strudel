@@ -2,16 +2,21 @@ import useEvent from '@src/useEvent.mjs';
 import { useStore } from '@nanostores/react';
 import { getAudioContext, soundMap, connectToDestination } from '@strudel/webaudio';
 import { useMemo, useRef, useState } from 'react';
-import { settingsMap, useSettings } from '../../../settings.mjs';
+import { settingsMap, soundFilterType, useSettings } from '../../../settings.mjs';
 import { ButtonGroup } from './Forms.jsx';
 import ImportSoundsButton from './ImportSoundsButton.jsx';
 import { Textbox } from '../textbox/Textbox.jsx';
+import { ActionButton } from '../button/action-button.jsx';
+import { confirmDialog } from '@src/repl/util.mjs';
+import { clearIDB, userSamplesDBConfig } from '@src/repl/idbutils.mjs';
+import { prebake } from '@src/repl/prebake.mjs';
 
 const getSamples = (samples) =>
   Array.isArray(samples) ? samples.length : typeof samples === 'object' ? Object.values(samples).length : 1;
 
 export function SoundsTab() {
   const sounds = useStore(soundMap);
+
   const { soundsFilter } = useSettings();
   const [search, setSearch] = useState('');
   const { BASE_URL } = import.meta.env;
@@ -27,18 +32,22 @@ export function SoundsTab() {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()));
 
-    if (soundsFilter === 'user') {
+    if (soundsFilter === soundFilterType.USER) {
       return filtered.filter(([_, { data }]) => !data.prebake);
     }
-    if (soundsFilter === 'drums') {
+    if (soundsFilter === soundFilterType.DRUMS) {
       return filtered.filter(([_, { data }]) => data.type === 'sample' && data.tag === 'drum-machines');
     }
-    if (soundsFilter === 'samples') {
+    if (soundsFilter === soundFilterType.SAMPLES) {
       return filtered.filter(([_, { data }]) => data.type === 'sample' && data.tag !== 'drum-machines');
     }
-    if (soundsFilter === 'synths') {
+    if (soundsFilter === soundFilterType.SYNTHS) {
       return filtered.filter(([_, { data }]) => ['synth', 'soundfont'].includes(data.type));
     }
+    if (soundsFilter === soundFilterType.WAVETABLES) {
+      return filtered.filter(([_, { data }]) => data.type === 'wavetable');
+    }
+    //TODO: tidy this up, it does not need to be saved in settings
     if (soundsFilter === 'importSounds') {
       return [];
     }
@@ -47,6 +56,9 @@ export function SoundsTab() {
 
   // holds mutable ref to current triggered sound
   const trigRef = useRef();
+
+  // Used to cycle through sound previews on banks with multiple sounds
+  let soundPreviewIdx = 0;
 
   // stop current sound on mouseup
   useEvent('mouseup', () => {
@@ -57,10 +69,10 @@ export function SoundsTab() {
     });
   });
   return (
-    <div id="sounds-tab" className="px-4 flex flex-col w-full h-full text-foreground">
+    <div id="sounds-tab" className="px-4 flex gap-2 flex-col w-full h-full text-foreground">
       <Textbox placeholder="Search" value={search} onChange={(v) => setSearch(v)} />
 
-      <div className="pb-2 flex shrink-0 flex-wrap">
+      <div className=" flex shrink-0 flex-wrap">
         <ButtonGroup
           value={soundsFilter}
           onChange={(value) => settingsMap.setKey('soundsFilter', value)}
@@ -68,13 +80,33 @@ export function SoundsTab() {
             samples: 'samples',
             drums: 'drum-machines',
             synths: 'Synths',
+            wavetables: 'Wavetables',
             user: 'User',
             importSounds: 'import-sounds',
           }}
         ></ButtonGroup>
       </div>
 
-      <div className="min-h-0 max-h-full grow overflow-auto  text-sm break-normal pb-2">
+      {soundsFilter === soundFilterType.USER && soundEntries.length > 0 && (
+        <ActionButton
+          className="pl-2"
+          label="delete-all"
+          onClick={async () => {
+            try {
+              const confirmed = await confirmDialog('Delete all imported user samples?');
+              if (confirmed) {
+                clearIDB(userSamplesDBConfig.dbName);
+                soundMap.set({});
+                await prebake();
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+        />
+      )}
+
+      <div className="min-h-0 max-h-full grow overflow-auto  text-sm break-normal bg-background p-2 rounded-md">
         {soundEntries.map(([name, { data, onTrigger }]) => {
           return (
             <span
@@ -85,11 +117,13 @@ export function SoundsTab() {
                 const params = {
                   note: ['synth', 'soundfont'].includes(data.type) ? 'a3' : undefined,
                   s: name,
+                  n: soundPreviewIdx,
                   clip: 1,
                   release: 0.5,
                   sustain: 1,
                   duration: 0.5,
                 };
+                soundPreviewIdx++;
                 const time = ctx.currentTime + 0.05;
                 const onended = () => trigRef.current?.node?.disconnect();
                 trigRef.current = Promise.resolve(onTrigger(time, params, onended));
@@ -101,6 +135,7 @@ export function SoundsTab() {
               {' '}
               {name}
               {data?.type === 'sample' ? `(${getSamples(data.samples)})` : ''}
+              {data?.type === 'wavetable' ? `(${getSamples(data.tables)})` : ''}
               {data?.type === 'soundfont' ? `(${data.fonts.length})` : ''}
             </span>
           );
@@ -151,9 +186,7 @@ export function SoundsTab() {
         ) : (
           ''
         )}
-        {!soundEntries.length && soundsFilter !== 'importSounds'
-          ? 'No custom sounds loaded in this pattern (yet).'
-          : ''}
+        {!soundEntries.length && soundsFilter !== 'importSounds' ? 'No sounds loaded' : ''}
       </div>
     </div>
   );

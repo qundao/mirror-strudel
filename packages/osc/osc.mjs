@@ -6,7 +6,7 @@ This program is free software: you can redistribute it and/or modify it under th
 
 import OSC from 'osc-js';
 
-import { logger, parseNumeral, Pattern, isNote, noteToMidi, ClockCollator } from '@strudel/core';
+import { logger, parseNumeral, register, isNote, noteToMidi, ClockCollator } from '@strudel/core';
 
 let connection; // Promise<OSC>
 function connect() {
@@ -60,7 +60,7 @@ export function parseControlsFromHap(hap, cps) {
 
 const collator = new ClockCollator({});
 
-export async function oscTrigger(t_deprecate, hap, currentTime, cps = 1, targetTime) {
+export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
   const osc = await connect();
   const controls = parseControlsFromHap(hap, cps);
   const keyvals = Object.entries(controls).flat();
@@ -81,6 +81,4 @@ export async function oscTrigger(t_deprecate, hap, currentTime, cps = 1, targetT
  * @memberof Pattern
  * @returns Pattern
  */
-Pattern.prototype.osc = function () {
-  return this.onTrigger(oscTrigger);
-};
+export const osc = register('osc', (pat) => pat.onTrigger(oscTrigger));
