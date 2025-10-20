@@ -101,11 +101,11 @@ export function nearestNumberIndex(target, numbers, preferHigher) {
 let scaleSteps = {}; // [scaleName]: semitones[]
 
 export function stepInNamedScale(step, scale, anchor, preferHigher) {
-  let [root, scaleName] = Scale.tokenize(scale);
+  const [root, scaleName] = Scale.tokenize(scale);
   const rootMidi = x2midi(root);
   const rootChroma = midi2chroma(rootMidi);
   if (!scaleSteps[scaleName]) {
-    let { intervals } = Scale.get(`C ${scaleName}`);
+    const { intervals } = Scale.get(`C ${scaleName}`);
     // cache result
     scaleSteps[scaleName] = intervals.map(step2semitones);
   }
@@ -178,7 +178,7 @@ export function renderVoicing({ chord, dictionary, offset = 0, n, mode = 'below'
   return notes;
 }
 
-// https://github.com/tidalcycles/strudel/blob/14184993d0ee7d69c47df57ac864a1a0f99a893f/packages/tonal/tonleiter.mjs
+// https://codeberg.org/uzu/strudel/blob/14184993d0ee7d69c47df57ac864a1a0f99a893f/packages/tonal/tonleiter.mjs
 const steps = [1, 0, 2, 0, 3, 4, 0, 5, 0, 6, 0, 7];
 const notes = ['C', '', 'D', '', 'E', 'F', '', 'G', '', 'A', '', 'B'];
 const noteLetters = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -222,6 +222,7 @@ export const Note = {
 };
 
 // TODO: support octave numbers
+// Example: Note("Bb3").transpose("c3")
 export function transpose(note, step) {
   // example: E, 3
   const stepNumber = Step.tokenize(step)[1]; // 3
@@ -235,5 +236,3 @@ export function transpose(note, step) {
   const offsetAccidentals = accidentalString(Step.accidentals(step) + Note.accidentals(note) + stepIndex - indexOffset); // "we need to add a # to to the G to make it a major third from E"
   return [targetNote, offsetAccidentals].join('');
 }
-
-//Note("Bb3").transpose("c3")

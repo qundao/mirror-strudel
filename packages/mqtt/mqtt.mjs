@@ -1,6 +1,6 @@
 /*
 mqtt.mjs - for patterning the internet of things from strudel
-Copyright (C) 2022 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/serial/serial.mjs>
+Copyright (C) 2022 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/serial/serial.mjs>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
@@ -82,7 +82,7 @@ Pattern.prototype.mqtt = function (
     cx.connect(props);
   }
   return this.withHap((hap) => {
-    const onTrigger = (t_deprecate, hap, currentTime, cps, targetTime) => {
+    const onTrigger = (hap, currentTime, cps, targetTime) => {
       let msg_topic = topic;
       if (!cx || !cx.isConnected()) {
         return;

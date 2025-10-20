@@ -2,9 +2,32 @@ import { useMemo, useState } from 'react';
 
 import jsdocJson from '../../../../../doc.json';
 import { Textbox } from '../textbox/Textbox';
-const availableFunctions = jsdocJson.docs
-  .filter(({ name, description }) => name && !name.startsWith('_') && !!description)
-  .sort((a, b) => /* a.meta.filename.localeCompare(b.meta.filename) +  */ a.name.localeCompare(b.name));
+
+const isValid = ({ name, description }) => name && !name.startsWith('_') && !!description;
+
+const availableFunctions = (() => {
+  const seen = new Set(); // avoid repetition
+  const functions = [];
+  for (const doc of jsdocJson.docs) {
+    if (!isValid(doc)) continue;
+    functions.push(doc);
+    const synonyms = doc.synonyms || [];
+    for (const s of synonyms) {
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      // Swap `doc.name` in for `s` in the list of synonyms
+      const synonymsWithDoc = [doc.name, ...synonyms].filter((x) => x && x !== s);
+      functions.push({
+        ...doc,
+        name: s, // update names for the synonym
+        longname: s,
+        synonyms: synonymsWithDoc,
+        synonyms_text: synonymsWithDoc.join(', '),
+      });
+    }
+  }
+  return functions.sort((a, b) => /* a.meta.filename.localeCompare(b.meta.filename) +  */ a.name.localeCompare(b.name));
+})();
 
 const getInnerText = (html) => {
   var div = document.createElement('div');
@@ -21,7 +44,11 @@ export function Reference() {
         return true;
       }
 
-      return entry.name.includes(search) || (entry.synonyms?.some((s) => s.includes(search)) ?? false);
+      const lowerCaseSearch = search.toLowerCase();
+      return (
+        entry.name.toLowerCase().includes(lowerCaseSearch) ||
+        (entry.synonyms?.some((s) => s.toLowerCase().includes(lowerCaseSearch)) ?? false)
+      );
     });
   }, [search]);
 
@@ -70,7 +97,7 @@ export function Reference() {
               <ul>
                 {entry.params?.map(({ name, type, description }, i) => (
                   <li key={i}>
-                    {name} : {type.names?.join(' | ')} {description ? <> - {getInnerText(description)}</> : ''}
+                    {name} : {type?.names?.join(' | ')} {description ? <> - {getInnerText(description)}</> : ''}
                   </li>
                 ))}
               </ul>

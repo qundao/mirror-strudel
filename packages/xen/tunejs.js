@@ -1,6 +1,6 @@
 /*
 tunejs.js - <short description TODO>
-Copyright (C) 2022 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/xen/tunejs.js>
+Copyright (C) 2022 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/xen/tunejs.js>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
@@ -139,10 +139,10 @@ Tune.prototype.MIDI = function(stepIn,octaveIn) {
 
 /* Load a new scale */
 
-Tune.prototype.loadScale = function(name){
+Tune.prototype.loadScale = function(scale){
 
 	/* load the scale */
-	var freqs = TuningList[name].frequencies
+	var freqs = isArrayOfNumbers(scale) ? scale : TuningList[scale].frequencies
 	this.scale = []
 	for (var i=0;i<freqs.length-1;i++) {
 		this.scale.push(freqs[i]/freqs[0])
@@ -207,8 +207,13 @@ Tune.prototype.search = function(letters) {
 	return possible
 }
 
-Tune.prototype.isValidScale = function(name) {
-  return !!TuningList[name];
+function isArrayOfNumbers(arg) {
+    return Array.isArray(arg) && arg.length > 0 && arg.every(item => typeof item === 'number' && !isNaN(item));
+}
+
+/* allow an array of values too */
+Tune.prototype.isValidScale = function(scale) {
+  return !!TuningList[scale] || isArrayOfNumbers(scale) ;
 }
 
 /* Return a collection of notes as an array */

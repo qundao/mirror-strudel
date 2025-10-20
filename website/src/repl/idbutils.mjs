@@ -1,4 +1,4 @@
-import { registerSound, onTriggerSample } from '@strudel/webaudio';
+import { registerSampleSource } from '@strudel/webaudio';
 import { isAudioFile } from './files.mjs';
 import { logger } from '@strudel/core';
 
@@ -12,15 +12,19 @@ export const userSamplesDBConfig = {
 };
 
 // deletes all of the databases, useful for debugging
-function clearIDB() {
+function clearAllIDB() {
   window.indexedDB
     .databases()
     .then((r) => {
-      for (var i = 0; i < r.length; i++) window.indexedDB.deleteDatabase(r[i].name);
+      for (var i = 0; i < r.length; i++) clearIDB(r[i].name);
     })
     .then(() => {
       alert('All data cleared.');
     });
+}
+
+export function clearIDB(dbName) {
+  return window.indexedDB.deleteDatabase(dbName);
 }
 
 // queries the DB, and registers the sounds so they can be played
@@ -72,13 +76,7 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
               })
               .map((title) => titlePathMap.get(title));
 
-            registerSound(key, (t, hapValue, onended) => onTriggerSample(t, hapValue, onended, value), {
-              type: 'sample',
-              samples: value,
-              baseUrl: undefined,
-              prebake: false,
-              tag: undefined,
-            });
+            registerSampleSource(key, value, { prebake: false });
           });
 
           logger('imported sounds registered!', 'success');

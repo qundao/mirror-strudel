@@ -1,10 +1,10 @@
 import { drywet } from './helpers.mjs';
-import { getAudioContext } from './superdough.mjs';
+import { getAudioContext } from './audioContext.mjs';
 
 let noiseCache = {};
 
 // lazy generates noise buffers and keeps them forever
-function getNoiseBuffer(type, density) {
+export function getNoiseBuffer(type, density) {
   const ac = getAudioContext();
   if (noiseCache[type]) {
     return noiseCache[type];
