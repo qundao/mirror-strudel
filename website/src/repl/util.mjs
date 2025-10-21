@@ -8,7 +8,6 @@ import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { $featuredPatterns /* , loadDBPatterns */ } from '@src/user_pattern_utils.mjs';
-import { decompress as brotlidecompress } from 'brotli-compress';
 import { decode as base64urldecode } from 'base64url-universal';
 
 // Create a single supabase client for interacting with your database
@@ -31,13 +30,17 @@ export async function initCode() {
     if (codeParam) {
       if (codeParam[0] === '~')
       {
-        // Encoded using base64url and Compressed by brotli 
+        // Encoded using base64url and compressed
         const baseurled = codeParam.substring(1);
         //console.log('baseurled', baseurled);
-        const brotlized = base64urldecode(baseurled);
-        //console.log('brotlized', brotlized);
-        const encoded = await brotlidecompress(brotlized);
+        const compressed = base64urldecode(baseurled);
+        //console.log('compressed', compressed);
+
+        const cs = new DecompressionStream('deflate');
+        const writer = cs.writable.getWriter(); writer.write(compressed); writer.close();
+        const encoded = await new Response(cs.readable).arrayBuffer()
         //console.log('encoded', encoded);
+
         const decoded = new TextDecoder().decode(encoded);
         //console.log('decoded', decoded);
         return decoded;

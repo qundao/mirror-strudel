@@ -36,7 +36,6 @@ import { getRandomTune, initCode, loadModules, shareCode } from './util.mjs';
 import './Repl.css';
 import { setInterval, clearInterval } from 'worker-timers';
 import { getMetadata } from '../metadata_parser';
-import { compress as brotlicompress } from 'brotli-compress';
 import { encode as base64urlencode } from 'base64url-universal';
 
 const { latestCode, maxPolyphony, audioDeviceName, multiChannelOrbits } = settingsMap.get();
@@ -104,12 +103,16 @@ export function useReplContext() {
         setLatestCode(code);
         //window.location.hash = '#' + code2hash(code);
 
-        // Compress the script with brotli and encode it with base64url
+        // Compress the script and encode it with base64url
         const encoded = new TextEncoder().encode(code);
         //console.log('encoded',encoded);
-        const brotlized = await brotlicompress(encoded, { mode: 1, quality: 11 });
-        //console.log('brotlized',brotlized);
-        const baseurled = base64urlencode(brotlized);
+
+        const cs = new CompressionStream('deflate');
+        const writer = cs.writable.getWriter(); writer.write(encoded); writer.close();
+        const compressed = new Uint8Array(await new Response(cs.readable).arrayBuffer());
+        //console.log('compressed',compressed);
+
+        const baseurled = base64urlencode(compressed);
         //console.log('baseurled',baseurled);
         window.location.hash = '#~' + baseurled;
 
