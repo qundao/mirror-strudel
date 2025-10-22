@@ -105,3 +105,4 @@ export function getCommonSampleInfo(hapValue, bank) {
   const label = `${s}:${index}`;
   return { transpose, url, index, midi, label };
 }
+
