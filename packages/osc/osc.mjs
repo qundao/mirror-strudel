@@ -55,6 +55,7 @@ export function parseControlsFromHap(hap, cps) {
   controls.unit === 'c' && controls.speed != null && (controls.speed = controls.speed / cps);
   const channels = controls.channels;
   channels != undefined && (controls.channels = JSON.stringify(channels));
+
   return controls;
 }
 
@@ -72,16 +73,29 @@ export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
   osc.send(bundle);
 }
 
-export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
+export async function superdirtTrigger(hap, currentTime, cps = 1, targetTime) {
   const osc = await connect();
   const controls = parseControlsFromHap(hap, cps);
-  const keyvals = Object.entries(controls).flat();
 
-  const ts = Math.round(collator.calculateTimestamp(currentTime, targetTime) * 1000);
-  const message = new OSC.Message('/dirt/play', ...keyvals);
-  const bundle = new OSC.Bundle([message], ts);
-  bundle.timestamp(ts); // workaround for https://github.com/adzialocha/osc-js/issues/60
-  osc.send(bundle);
+  if (hap.hasOnset) {
+    const keyvals = Object.entries(controls).flat();
+
+    for (const [k, v] of Object.entries(hap.value)) {
+      if (k.startsWith('^')) {
+        const bus_id = v;
+        const bus_value = v[k.substring(1)];
+        const message = new OSC.Message('/c_set', bus_id, bus_value);
+
+        // So they aren't sent with trigger messages
+        delete controls[k];
+      }
+    }
+    const ts = Math.round(collator.calculateTimestamp(currentTime, targetTime) * 1000);
+    const message = new OSC.Message('/dirt/play', ...keyvals);
+    const bundle = new OSC.Bundle([message], ts);
+    bundle.timestamp(ts); // workaround for https://github.com/adzialocha/osc-js/issues/60
+    osc.send(bundle);
+  }
 }
 
 /**
@@ -94,4 +108,4 @@ export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
  * @returns Pattern
  */
 export const osc = register('osc', (pat) => pat.onTrigger(oscTrigger));
-export const superdirt = register('superdirt', (pat) => pat.withHap(hap => hap.withContext(c => {...c, processParts: true})).onTrigger(superdirtTrigger));
+export const superdirt = register('superdirt', (pat) => pat._processParts().onTrigger(superdirtTrigger));
