@@ -58,7 +58,6 @@ export class Cyclist {
 
           // query the pattern for events
           const haps = this.pattern.queryArc(begin, end, { _cps: this.cps, cyclist: 'cyclist' });
-
           haps.forEach((hap) => {
             if (hap.hasOnset() || hap.context.processParts) {
               const targetTime =
@@ -68,7 +67,7 @@ export class Cyclist {
               // see https://codeberg.org/uzu/strudel/pulls/1004
               const deadline = targetTime - phase;
               // this onTrigger has another signature
-              onTrigger?.(hap, deadline, duration, this.cps, targetTime);
+              onTrigger?.(hap, deadline, duration, this.cps, targetTime, begin);
               if (hap.value.cps !== undefined && this.cps != hap.value.cps) {
                 this.cps = hap.value.cps;
                 this.num_ticks_since_cps_change = 0;
