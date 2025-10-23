@@ -72,6 +72,18 @@ export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
   osc.send(bundle);
 }
 
+export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
+  const osc = await connect();
+  const controls = parseControlsFromHap(hap, cps);
+  const keyvals = Object.entries(controls).flat();
+
+  const ts = Math.round(collator.calculateTimestamp(currentTime, targetTime) * 1000);
+  const message = new OSC.Message('/dirt/play', ...keyvals);
+  const bundle = new OSC.Bundle([message], ts);
+  bundle.timestamp(ts); // workaround for https://github.com/adzialocha/osc-js/issues/60
+  osc.send(bundle);
+}
+
 /**
  *
  * Sends each hap as an OSC message, which can be picked up by SuperCollider or any other OSC-enabled software.
@@ -82,3 +94,4 @@ export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
  * @returns Pattern
  */
 export const osc = register('osc', (pat) => pat.onTrigger(oscTrigger));
+export const superdirt = register('superdirt', (pat) => pat.withHap(hap => hap.withContext(c => {...c, processParts: true})).onTrigger(superdirtTrigger));

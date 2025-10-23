@@ -16,7 +16,7 @@ export class Hap {
       then the whole will be returned as None, in which case the given
       value will have been sampled from the point halfway between the
       start and end of the 'part' timespan.
-      The context is to store a list of source code locations causing the event.
+      The context is to store metadata, including a list of source code locations causing the event.
 
       The word 'Event' is more or less a reserved word in javascript, hence this
       class is named called 'Hap'.
@@ -159,6 +159,10 @@ export class Hap {
 
   setContext(context) {
     return new Hap(this.whole, this.part, this.value, context);
+  }
+
+  withContext(f) {
+    return new Hap(this.whole, this.part, this.value, f(this.context));
   }
 
   ensureObjectValue() {

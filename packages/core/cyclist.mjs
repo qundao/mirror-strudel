@@ -60,7 +60,7 @@ export class Cyclist {
           const haps = this.pattern.queryArc(begin, end, { _cps: this.cps, cyclist: 'cyclist' });
 
           haps.forEach((hap) => {
-            if (hap.hasOnset()) {
+            if (hap.hasOnset() || hap.context.processParts) {
               const targetTime =
                 (hap.whole.begin - this.num_cycles_at_cps_change) / this.cps + this.seconds_at_cps_change + latency;
               const duration = hap.duration / this.cps;
