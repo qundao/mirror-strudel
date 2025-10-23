@@ -64,38 +64,40 @@ export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
   const keyvals = Object.entries(controls).flat();
   const ts = collator.calculateTimestamp(currentTime, targetTime) * 1000;
   const msg = { address: '/dirt/play', args: keyvals, timestamp: ts };
-
-  if ('oschost' in hap.value) {
-    msg['host'] = hap.value['oschost'];
-  }
-  if ('oscport' in hap.value) {
-    msg['port'] = hap.value['oscport'];
-  }
   ws.send(JSON.stringify(msg));
 }
 
 export async function superdirtTrigger(hap, currentTime, cps = 1, targetTime) {
-  const osc = await connect();
+  const ws = await connect();
   const controls = parseControlsFromHap(hap, cps);
+  const ts = collator.calculateTimestamp(currentTime, targetTime) * 1000;
+
+  let oschost = '127.0.0.1';
+  let oscport = 57120;
+  let bushost = oschost;
+  let busport = 57110;
+
+  for (const [k, v] of Object.entries(controls)) {
+    if (k.startsWith('^')) {
+      const bus_id = v;
+      const bus_value = controls[k.substring(1)];
+      const msg = JSON.stringify({
+        oschost: bushost,
+        oscport: busport,
+        address: '/c_set',
+        args: [bus_id, bus_value],
+        timestamp: ts,
+      });
+      console.log('bus message', msg);
+      ws.send(msg);
+      // So they aren't sent with trigger messages
+      delete controls[k];
+    }
+  }
 
   if (hap.hasOnset) {
     const keyvals = Object.entries(controls).flat();
-
-    for (const [k, v] of Object.entries(hap.value)) {
-      if (k.startsWith('^')) {
-        const bus_id = v;
-        const bus_value = v[k.substring(1)];
-        const message = new OSC.Message('/c_set', bus_id, bus_value);
-
-        // So they aren't sent with trigger messages
-        delete controls[k];
-      }
-    }
-    const ts = Math.round(collator.calculateTimestamp(currentTime, targetTime) * 1000);
-    const message = new OSC.Message('/dirt/play', ...keyvals);
-    const bundle = new OSC.Bundle([message], ts);
-    bundle.timestamp(ts); // workaround for https://github.com/adzialocha/osc-js/issues/60
-    osc.send(bundle);
+    ws.send(JSON.stringify({ oschost, oscport, address: '/dirt/play', args: keyvals, timestamp: ts }));
   }
 }
 

@@ -12,18 +12,13 @@ import { WebSocketServer } from 'ws';
 import osc from 'osc';
 
 const WS_PORT = 8080; // WebSocket server port
-const OSC_REMOTE_IP = '127.0.0.1';
-const OSC_REMOTE_PORT = 57120;
 
 const udpPort = new osc.UDPPort({
   localAddress: '0.0.0.0',
   localPort: 0,
-  remoteAddress: OSC_REMOTE_IP,
-  remotePort: OSC_REMOTE_PORT,
 });
 
 udpPort.open();
-console.log(`[Sending OSC] ${OSC_REMOTE_IP}:${OSC_REMOTE_PORT}`);
 
 udpPort.on('error', (e) => {
   console.log('Error: ', e);
@@ -36,23 +31,25 @@ wss.on('connection', (ws) => {
   console.log('New WebSocket connection');
 
   ws.on('message', (message) => {
-    let osc_host = '127.0.0.1';
-    let osc_port = 57120;
+    let oschost = '127.0.0.1';
+    let oscport = 57120;
 
     try {
       const data = JSON.parse(message);
-      if ('host' in data) {
-        osc_host = data['host'];
+      if ('oschost' in data) {
+        oschost = data['oschost'];
+        delete data['oschost'];
       }
-      if ('port' in data) {
-        osc_port = data['port'];
+      if ('oscport' in data) {
+        oscport = data['oscport'];
+        delete data['oscport'];
       }
       let msg = { address: data['address'], args: data['args'] };
       if ('timestamp' in data) {
         msg = { timeTag: osc.timeTag(0, data['timestamp']), packets: [msg] };
       }
-
-      udpPort.send(msg, osc_host, osc_port);
+      console.log(msg, oschost, oscport);
+      udpPort.send(msg, oschost, oscport);
     } catch (err) {
       console.error('Error parsing message:', err);
     }
