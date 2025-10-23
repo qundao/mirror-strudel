@@ -62,7 +62,12 @@ export class Pattern {
     this.__steps = steps === undefined ? undefined : Fraction(steps);
   }
 
+  _processParts() {
+    return this.withHap((hap) => hap.withContext((c) => ({ ...c, processParts: true })));
+  }
+
   setSteps(steps) {
+    // TODO shouldn't this be pure and return a new pattern?
     this._steps = steps;
     return this;
   }
