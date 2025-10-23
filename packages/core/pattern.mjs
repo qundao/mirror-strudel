@@ -3537,7 +3537,7 @@ export const morph = (frompat, topat, bypat) => {
 const _asArrayPattern = (pats) => {
   const pack = (...xs) => xs;
   let acc = pure(curry(pack, null, pats.length));
-  for (const p of pats) acc = acc.appLeft(p);
+  for (const p of pats) acc = acc.appBoth(p);
   return acc;
 };
 
@@ -3551,12 +3551,10 @@ const _asArrayPattern = (pats) => {
  */
 Pattern.prototype.FX = function (...effects) {
   effects = effects.map(reify);
-  return this.outerBind((v) => {
-    return _asArrayPattern(effects).withValue((vEff) => {
-      const currFX = v.FX ?? [];
-      return { ...v, FX: currFX.concat(vEff) };
-    });
-  });
+  return this.withValue((v) => (vEff) => {
+    const currFX = v.FX ?? [];
+    return { ...v, FX: currFX.concat(vEff) };
+  }).appLeft(_asArrayPattern(effects));
 };
 
 /**

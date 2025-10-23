@@ -523,6 +523,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       velocity = getDefaultValue('velocity'),
       shapevol = getDefaultValue('shapevol'),
       drive = getDefaultValue('drive'),
+      distorttype = getDefaultValue('distorttype'),
       distortvol = getDefaultValue('distortvol'),
       tremolodepth = getDefaultValue('tremolodepth'),
       phaserdepth = getDefaultValue('phaserdepth'),
@@ -623,7 +624,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     fx.coarse !== undefined && chain.push(getWorklet(ac, 'coarse-processor', { coarse: fx.coarse }));
     fx.crush !== undefined && chain.push(getWorklet(ac, 'crush-processor', { crush: fx.crush }));
     fx.shape !== undefined && chain.push(getWorklet(ac, 'shape-processor', { shape: fx.shape, postgain: shapevol }));
-    fx.distort !== undefined && chain.push(getDistortion(fx.distort, distortvol, fx.distorttype));
+    fx.distort !== undefined && chain.push(getDistortion(fx.distort, distortvol, distorttype));
 
     let tremolo = fx.tremolo;
     if (fx.tremolosync != null) {
@@ -633,7 +634,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     if (tremolo !== undefined) {
       // Allow clipping of modulator for more dynamic possiblities, and to prevent speaker overload
       // EX:  a triangle waveform will clip like this /-\ when the depth is above 1
-      const gain = Math.max(1 - fx.tremolodepth, 0);
+      const gain = Math.max(1 - tremolodepth, 0);
       const amGain = new GainNode(ac, { gain });
 
       const time = cycle / cps;
