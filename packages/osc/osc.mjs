@@ -67,7 +67,7 @@ export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
   ws.send(JSON.stringify(msg));
 }
 
-export async function superdirtTrigger(hap, currentTime, cps = 1, targetTime, queryBegin) {
+export async function superdirtTrigger(hap, currentTime, cps = 1, targetTime) {
   const ws = await connect();
   const controls = parseControlsFromHap(hap, cps);
   const ts = collator.calculateTimestamp(currentTime, targetTime) * 1000;
@@ -79,16 +79,13 @@ export async function superdirtTrigger(hap, currentTime, cps = 1, targetTime, qu
 
   for (const [k, v] of Object.entries(controls)) {
     if (k.startsWith('^')) {
-      const offset = hap.part.begin.sub(queryBegin) / cps;
-      console.log('part begin', +hap.part.begin, 'qBegin', queryBegin, 'adding', offset, 'to', ts);
-      const bus_id = v;
-      const bus_value = controls[k.substring(1)];
+      const bus_idval = v;
       const msg = JSON.stringify({
         oschost: bushost,
         oscport: busport,
         address: '/c_set',
-        args: [bus_id, bus_value],
-        timestamp: ts + offset,
+        args: bus_idval,
+        timestamp: ts,
       });
       // console.log('bus message', msg);
       ws.send(msg);
@@ -99,7 +96,7 @@ export async function superdirtTrigger(hap, currentTime, cps = 1, targetTime, qu
 
   if (hap.hasOnset()) {
     const keyvals = Object.entries(controls).flat();
-    ws.send(JSON.stringify({ oschost, oscport, address: '/dirt/play', args: keyvals, timestamp: ts + offset }));
+    ws.send(JSON.stringify({ oschost, oscport, address: '/dirt/play', args: keyvals, timestamp: ts }));
   }
 }
 

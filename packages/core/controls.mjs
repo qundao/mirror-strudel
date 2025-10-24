@@ -72,6 +72,15 @@ export function registerControl(names, ...aliases) {
   return bag;
 }
 
+// Constructs a superdirt effect bus control
+const bus = register('bus', function (busid, control_name, busval, pat) {
+  return pat[control_name]('c' + busid).withValue((val) => {
+    const newval = { ...val };
+    newval['^' + control_name] = [busid, busval];
+    return newval;
+  });
+});
+
 /**
  * Select a sound / sample by name. When using mininotation, you can also optionally supply 'n' and 'gain' parameters
  * separated by ':'.

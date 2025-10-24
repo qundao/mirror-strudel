@@ -48,7 +48,6 @@ wss.on('connection', (ws) => {
       if ('timestamp' in data) {
         msg = { timeTag: osc.timeTag(0, data['timestamp']), packets: [msg] };
       }
-      console.log(msg, oschost, oscport);
       udpPort.send(msg, oschost, oscport);
     } catch (err) {
       console.error('Error parsing message:', err);
