@@ -79,7 +79,7 @@ const updateCodeWindow = (context, patternData, reset = false) => {
   context.handleUpdate(patternData, reset);
 };
 
-const autoResetPatternOnChange = !isUdels();
+const autoResetPatternOnChange = false
 
 function UserPatterns({ context }) {
   const activePattern = useActivePattern();
