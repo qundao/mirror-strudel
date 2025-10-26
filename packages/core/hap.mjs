@@ -96,14 +96,15 @@ export class Hap {
     return this.context.tags?.includes(tag);
   }
 
+  // Returns the hap value with any state transformation applied
   resolveState(state) {
     if (this.stateful && this.hasOnset()) {
       console.log('stateful');
       const func = this.value;
       const [newState, newValue] = func(state);
-      return [newState, new Hap(this.whole, this.part, newValue, this.context, false)];
+      return [newState, newValue];
     }
-    return [state, this];
+    return [state, this.value];
   }
 
   spanEquals(other) {

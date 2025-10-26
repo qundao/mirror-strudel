@@ -31,6 +31,7 @@ export class Cyclist {
     this.seconds_at_cps_change; // clock phase when cps was changed
     this.onToggle = onToggle;
     this.latency = latency; // fixed trigger time offset
+    this.pattern_state = {};
     this.clock = createClock(
       getTime,
       // called slightly before each cycle
@@ -57,9 +58,20 @@ export class Cyclist {
           }
 
           // query the pattern for events
-          const haps = this.pattern.queryArc(begin, end, { _cps: this.cps, cyclist: 'cyclist' });
+          let haps = this.pattern.sortHapsByPart().queryArc(begin, end, { _cps: this.cps, cyclist: 'cyclist' });
+
+          // TODO - worth checking for stateful haps before needlessly sorting?
+          haps = haps.sort((a, b) =>
+            a.part.begin
+              .sub(b.part.begin)
+              .or(a.part.end.sub(b.part.end))
+              .or(a.whole.begin.sub(b.whole.begin).or(a.whole.end.sub(b.whole.end))),
+          );
+
           haps.forEach((hap) => {
             if (hap.hasOnset() || hap.context.processParts) {
+              let value;
+              [this.pattern_state, value] = hap.resolveState(this.pattern_state);
               const targetTime =
                 (hap.part.begin - this.num_cycles_at_cps_change) / this.cps + this.seconds_at_cps_change + latency;
               const duration = hap.duration / this.cps;
@@ -68,8 +80,8 @@ export class Cyclist {
               const deadline = targetTime - phase;
               // this onTrigger has another signature
               onTrigger?.(hap, deadline, duration, this.cps, targetTime);
-              if (hap.value.cps !== undefined && this.cps != hap.value.cps) {
-                this.cps = hap.value.cps;
+              if (value.cps !== undefined && this.cps != value.cps) {
+                this.cps = value.cps;
                 this.num_ticks_since_cps_change = 0;
               }
             }

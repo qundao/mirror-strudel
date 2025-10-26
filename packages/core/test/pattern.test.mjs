@@ -127,9 +127,9 @@ describe('Hap', () => {
       };
       const state = { incrementme: 10 };
       const ev1 = new Hap(ts(0, 1), ts(0, 1), stateful_value, {}, true);
-      const [state2, ev2] = ev1.resolveState(state);
-      const [state3, ev3] = ev1.resolveState(state2);
-      expect(ev3).toStrictEqual(new Hap(ts(0, 1), ts(0, 1), 11, {}, false));
+      const [state2, _] = ev1.resolveState(state);
+      const [state3, v3] = ev1.resolveState(state2);
+      expect(v3).toStrictEqual(11);
       expect(state3).toStrictEqual({ incrementme: 12 });
     });
   });
