@@ -5,7 +5,7 @@ import {
   slow,
   seq,
   stepcat,
-  extend,
+  replicate,
   expand,
   pace,
   chooseIn,
@@ -36,7 +36,7 @@ lib.square = (...args) => stepcat(...args).setSteps(1);
 lib.angle = (...args) => stepcat(...args).pace(1);
 lib['*'] = fast;
 lib['/'] = slow;
-lib['!'] = extend;
+lib['!'] = replicate;
 lib['@'] = expand;
 lib['%'] = pace;
 lib['?'] = degradeBy; // todo: default 0.5 not working..
