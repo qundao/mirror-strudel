@@ -4,8 +4,6 @@ Copyright (C) 2022 Strudel contributors - see <https://codeberg.org/uzu/strudel/
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import OSC from 'osc-js';
-
 import { logger, parseNumeral, register, isNote, noteToMidi, ClockCollator } from '@strudel/core';
 
 let connection; // Promise<OSC>
@@ -13,19 +11,18 @@ function connect() {
   if (!connection) {
     // make sure this runs only once
     connection = new Promise((resolve, reject) => {
-      const osc = new OSC();
-      osc.open();
-      osc.on('open', () => {
-        const url = osc.options?.plugin?.socket?.url;
-        logger(`[osc] connected${url ? ` to ${url}` : ''}`);
-        resolve(osc);
+      const ws = new WebSocket('ws://localhost:8080');
+      ws.addEventListener('open', (event) => {
+        logger(`[osc] websocket connected`);
+        resolve(ws);
       });
-      osc.on('close', () => {
+      ws.addEventListener('close', (event) => {
+        logger(`[osc] websocket closed`);
         connection = undefined; // allows new connection afterwards
         console.log('[osc] disconnected');
         reject('OSC connection closed');
       });
-      osc.on('error', (err) => reject(err));
+      ws.addEventListener('error', (err) => reject(err));
     }).catch((err) => {
       connection = undefined;
       throw new Error('Could not connect to OSC server. Is it running?');
@@ -61,15 +58,19 @@ export function parseControlsFromHap(hap, cps) {
 const collator = new ClockCollator({});
 
 export async function oscTrigger(hap, currentTime, cps = 1, targetTime) {
-  const osc = await connect();
+  const ws = await connect();
   const controls = parseControlsFromHap(hap, cps);
   const keyvals = Object.entries(controls).flat();
+  const ts = collator.calculateTimestamp(currentTime, targetTime) * 1000;
+  const msg = { address: '/dirt/play', args: keyvals, timestamp: ts };
 
-  const ts = Math.round(collator.calculateTimestamp(currentTime, targetTime) * 1000);
-  const message = new OSC.Message('/dirt/play', ...keyvals);
-  const bundle = new OSC.Bundle([message], ts);
-  bundle.timestamp(ts); // workaround for https://github.com/adzialocha/osc-js/issues/60
-  osc.send(bundle);
+  if ('oschost' in hap.value) {
+    msg['host'] = hap.value['oschost'];
+  }
+  if ('oscport' in hap.value) {
+    msg['port'] = hap.value['oscport'];
+  }
+  ws.send(JSON.stringify(msg));
 }
 
 /**
