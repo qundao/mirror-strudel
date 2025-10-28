@@ -11,6 +11,7 @@ import {
   chooseIn,
   degradeBy,
   silence,
+  bjork,
 } from '@strudel/core';
 import { registerLanguage } from '@strudel/transpiler';
 import { MondoRunner } from 'mondolang';
@@ -40,6 +41,7 @@ lib['!'] = replicate;
 lib['@'] = expand;
 lib['%'] = pace;
 lib['?'] = degradeBy; // todo: default 0.5 not working..
+lib['&'] = bjork;
 lib[':'] = tail;
 lib['..'] = range;
 lib['def'] = () => silence;

@@ -35,18 +35,18 @@ const right = function (n, x) {
   return result;
 };
 
-const _bjork = function (n, x) {
+const _bjorklund = function (n, x) {
   const [ons, offs] = n;
-  return Math.min(ons, offs) <= 1 ? [n, x] : _bjork(...(ons > offs ? left(n, x) : right(n, x)));
+  return Math.min(ons, offs) <= 1 ? [n, x] : _bjorklund(...(ons > offs ? left(n, x) : right(n, x)));
 };
 
-export const bjork = function (ons, steps) {
+export const bjorklund = function (ons, steps) {
   const inverted = ons < 0;
   const absOns = Math.abs(ons);
   const offs = steps - absOns;
   const ones = Array(absOns).fill([1]);
   const zeros = Array(offs).fill([0]);
-  const result = _bjork([absOns, offs], [ones, zeros]);
+  const result = _bjorklund([absOns, offs], [ones, zeros]);
   const pattern = flatten(result[1][0]).concat(flatten(result[1][1]));
   return inverted ? pattern.map((x) => 1 - x) : pattern;
 };
@@ -128,7 +128,7 @@ export const bjork = function (ons, steps) {
  */
 
 const _euclidRot = function (pulses, steps, rotation) {
-  const b = bjork(pulses, steps);
+  const b = bjorklund(pulses, steps);
   if (rotation) {
     return rotate(b, -rotation);
   }
@@ -139,7 +139,7 @@ export const euclid = register('euclid', function (pulses, steps, pat) {
   return pat.struct(_euclidRot(pulses, steps, 0));
 });
 
-export const e = register('e', function (euc, pat) {
+export const bjork = register('bjork', function (euc, pat) {
   if (!Array.isArray(euc)) {
     euc = [euc];
   }
@@ -216,6 +216,6 @@ export const euclidLegatoRot = register(['euclidLegatoRot'], function (pulses, s
  * .pan(sine.slow(8))
  */
 export const { euclidish, eish } = register(['euclidish', 'eish'], function (pulses, steps, perc, pat) {
-  const morphed = _morph(bjork(pulses, steps), new Array(pulses).fill(1), perc);
+  const morphed = _morph(bjorklund(pulses, steps), new Array(pulses).fill(1), perc);
   return pat.struct(morphed).setSteps(steps);
 });

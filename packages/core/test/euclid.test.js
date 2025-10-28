@@ -1,14 +1,14 @@
-import { bjork } from '../euclid.mjs';
+import { bjorklund } from '../euclid.mjs';
 import { describe, expect, it } from 'vitest';
 import { fastcat } from '../pattern.mjs';
 
-describe('bjork', () => {
-  it('should apply bjorklund to ons and steps', () => {
-    expect(bjork(3, 8)).toStrictEqual([1, 0, 0, 1, 0, 0, 1, 0]);
-    expect(bjork(-3, 8)).toStrictEqual([0, 1, 1, 0, 1, 1, 0, 1]);
-    expect(bjork(8, 8)).toStrictEqual([1, 1, 1, 1, 1, 1, 1, 1]);
-    expect(bjork(-8, 8)).toStrictEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-    expect(bjork(5, 8)).toStrictEqual([1, 0, 1, 1, 0, 1, 1, 0]);
+describe('bjorklund', () => {
+  it('should apply bjorklundlund to ons and steps', () => {
+    expect(bjorklund(3, 8)).toStrictEqual([1, 0, 0, 1, 0, 0, 1, 0]);
+    expect(bjorklund(-3, 8)).toStrictEqual([0, 1, 1, 0, 1, 1, 0, 1]);
+    expect(bjorklund(8, 8)).toStrictEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+    expect(bjorklund(-8, 8)).toStrictEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(bjorklund(5, 8)).toStrictEqual([1, 0, 1, 1, 0, 1, 1, 0]);
   });
 });
 

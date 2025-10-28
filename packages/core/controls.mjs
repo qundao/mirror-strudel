@@ -2320,6 +2320,24 @@ export const { miditouch } = registerControl('miditouch');
 // TODO: what is this?
 export const { polyTouch } = registerControl('polyTouch');
 
+/**
+ * The host to send open sound control messages to. Requires running the OSC bridge.
+ * @name oschost
+ * @param {string | Pattern} oschost e.g. 'localhost'
+ * @example
+ * note("c4").oschost('127.0.0.1').oscport(57120).osc();
+ */
+export const { oschost } = registerControl('oschost');
+
+/**
+ * The port to send open sound control messages to. Requires running the OSC bridge.
+ * @name oscport
+ * @param {number | Pattern} oscport e.g. 57120
+ * @example
+ * note("c4").oschost('127.0.0.1').oscport(57120).osc();
+ */
+export const { oscport } = registerControl('oscport');
+
 export const getControlName = (alias) => {
   if (controlAlias.has(alias)) {
     return controlAlias.get(alias);

@@ -2574,8 +2574,8 @@ export const { chunkBack, chunkback } = register(
  * @returns Pattern
  * @example
  * "<0 8> 1 2 3 4 5 6 7"
- * .fastChunk(4, x => x.color('red')).slow(2)
  * .scale("C2:major").note()
+ * .fastChunk(4, x => x.color('red')).slow(2)
  */
 export const { fastchunk, fastChunk } = register(
   ['fastchunk', 'fastChunk'],

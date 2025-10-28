@@ -16,13 +16,17 @@ export const tokenizeNote = (note) => {
 const chromas = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
 const accs = { '#': 1, b: -1, s: 1, f: -1 };
 
+export const getAccidentalsOffset = (accidentals) => {
+  return accidentals?.split('').reduce((o, char) => o + accs[char], 0) || 0;
+};
+
 export const noteToMidi = (note, defaultOctave = 3) => {
   const [pc, acc, oct = defaultOctave] = tokenizeNote(note);
   if (!pc) {
     throw new Error('not a note: "' + note + '"');
   }
   const chroma = chromas[pc.toLowerCase()];
-  const offset = acc?.split('').reduce((o, char) => o + accs[char], 0) || 0;
+  const offset = getAccidentalsOffset(acc);
   return (Number(oct) + 1) * 12 + chroma + offset;
 };
 export const midiToFreq = (n) => {

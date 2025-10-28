@@ -7,8 +7,8 @@ This program is free software: you can redistribute it and/or modify it under th
 import { logger } from './logger.mjs';
 
 // returns true if the given string is a note
-export const isNoteWithOctave = (name) => /^[a-gA-G][#bs]*[0-9]$/.test(name);
-export const isNote = (name) => /^[a-gA-G][#bsf]*-?[0-9]?$/.test(name);
+export const isNoteWithOctave = (name) => /^[a-gA-G][#bsf]*[0-9]*$/.test(name);
+export const isNote = (name) => /^[a-gA-G][#bsf]*-?[0-9]*$/.test(name);
 export const tokenizeNote = (note) => {
   if (typeof note !== 'string') {
     return [];
@@ -23,6 +23,10 @@ export const tokenizeNote = (note) => {
 const chromas = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
 const accs = { '#': 1, b: -1, s: 1, f: -1 };
 
+export const getAccidentalsOffset = (accidentals) => {
+  return accidentals?.split('').reduce((o, char) => o + accs[char], 0) || 0;
+};
+
 // turns the given note into its midi number representation
 export const noteToMidi = (note, defaultOctave = 3) => {
   const [pc, acc, oct = defaultOctave] = tokenizeNote(note);
@@ -30,7 +34,7 @@ export const noteToMidi = (note, defaultOctave = 3) => {
     throw new Error('not a note: "' + note + '"');
   }
   const chroma = chromas[pc.toLowerCase()];
-  const offset = acc?.split('').reduce((o, char) => o + accs[char], 0) || 0;
+  const offset = getAccidentalsOffset(acc);
   return (Number(oct) + 1) * 12 + chroma + offset;
 };
 export const midiToFreq = (n) => {

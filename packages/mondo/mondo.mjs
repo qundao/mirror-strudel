@@ -21,13 +21,14 @@ export class MondoParser {
     close_curly: /^\}/,
     number: /^-?[0-9]*\.?[0-9]+/, // before pipe!
     // TODO: better error handling when "-" is used as rest, e.g "s [- bd]"
-    op: /^[*/:!@%?+-]|^\.{2}/, // * / : ! @ % ? ..
+    op: /^[*/:!@%?+\-&]|^\.{2}/, // * / : ! @ % ? ..
     // dollar: /^\$/,
     pipe: /^#/,
     stack: /^[,$]/,
     or: /^[|]/,
     plain: /^[a-zA-Z0-9-~_^#]+/,
   };
+  op_precedence = [['*', '/', ':', '!', '@', '%', '?', '+', '-', '..'], ['&']];
   // matches next token
   next_token(code, offset = 0) {
     for (let type in this.token_types) {
@@ -150,9 +151,9 @@ export class MondoParser {
     }
     return children;
   }
-  desugar_ops(children) {
+  desugar_ops(children, types) {
     while (true) {
-      let opIndex = children.findIndex((child) => child.type === 'op');
+      let opIndex = children.findIndex((child) => child.type === 'op' && types.includes(child.value));
       if (opIndex === -1) break;
       const op = { type: 'plain', value: children[opIndex].value };
       if (opIndex === children.length - 1) {
@@ -263,8 +264,10 @@ export class MondoParser {
           // the type we've removed before splitting needs to be added back
           children = [{ type: 'plain', value: type }, ...children];
         }
-        children = this.desugar_ops(children);
-        // children = this.desugar_pipes(children, (children) => this.desugar_dollars(children));
+        // for each precendence group, call desugar_ops once
+        this.op_precedence.forEach((ops) => {
+          children = this.desugar_ops(children, ops);
+        });
         children = this.desugar_pipes(children);
         return children;
       }),
