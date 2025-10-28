@@ -2574,8 +2574,8 @@ export const { chunkBack, chunkback } = register(
  * @returns Pattern
  * @example
  * "<0 8> 1 2 3 4 5 6 7"
- * .fastChunk(4, x => x.color('red')).slow(2)
  * .scale("C2:major").note()
+ * .fastChunk(4, x => x.color('red')).slow(2)
  */
 export const { fastchunk, fastChunk } = register(
   ['fastchunk', 'fastChunk'],
@@ -2996,6 +2996,24 @@ export const drop = stepRegister('drop', function (i, pat) {
  */
 export const extend = stepRegister('extend', function (factor, pat) {
   return pat.fast(factor).expand(factor);
+});
+
+/**
+ * *Experimental*
+ *
+ * `replicate` is similar to `fast` in that it increases its density, but it also increases the step count
+ * accordingly. So `stepcat("a b".replicate(2), "c d")` would be the same as `"a b a b c d"`, whereas
+ * `stepcat("a b".fast(2), "c d")` would be the same as `"[a b] [a b] c d"`.
+ *
+ * TODO: find out how this function differs from extend
+ * @example
+ * stepcat(
+ *   sound("bd bd - cp").replicate(2),
+ *   sound("bd - sd -")
+ * ).pace(8)
+ */
+export const replicate = stepRegister('replicate', function (factor, pat) {
+  return pat.repeatCycles(factor).fast(factor).expand(factor);
 });
 
 /**

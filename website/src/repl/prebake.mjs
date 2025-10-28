@@ -6,6 +6,7 @@ import './files.mjs';
 
 const { BASE_URL } = import.meta.env;
 const baseNoTrailing = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+const baseCDN = 'https://strudel.b-cdn.net';
 
 export async function prebake() {
   // https://archive.org/details/SalamanderGrandPianoV3
@@ -19,23 +20,23 @@ export async function prebake() {
     // => getting "window is not defined", as soon as "@strudel/soundfonts" is imported statically
     // seems to be a problem with soundfont2
     import('@strudel/soundfonts').then(({ registerSoundfonts }) => registerSoundfonts()),
-    samples(`${baseNoTrailing}/piano.json`, undefined, { prebake: true }),
+    samples(`${baseCDN}/piano.json`, `${baseCDN}/piano/`, { prebake: true }),
     // https://github.com/sgossner/VCSL/
     // https://api.github.com/repositories/126427031/contents/
     // LICENSE: CC0 general-purpose
-    samples(`${baseNoTrailing}/vcsl.json`, 'github:sgossner/VCSL/master/', { prebake: true }),
-    samples(`${baseNoTrailing}/tidal-drum-machines.json`, 'github:ritchse/tidal-drum-machines/main/machines/', {
+    samples(`${baseCDN}/vcsl.json`, `${baseCDN}/VCSL/`, { prebake: true }),
+    samples(`${baseCDN}/tidal-drum-machines.json`, `${baseCDN}/tidal-drum-machines/machines/`, {
       prebake: true,
       tag: 'drum-machines',
     }),
-    samples(`${baseNoTrailing}/uzu-drumkit.json`, undefined, {
+    samples(`${baseCDN}/uzu-drumkit.json`, `${baseCDN}/uzu-drumkit/`, {
       prebake: true,
       tag: 'drum-machines',
     }),
-    samples(`${baseNoTrailing}/uzu-wavetables.json`, undefined, {
+    samples(`${baseCDN}/uzu-wavetables.json`, `${baseCDN}/uzu-wavetables/`, {
       prebake: true,
     }),
-    samples(`${baseNoTrailing}/mridangam.json`, undefined, { prebake: true, tag: 'drum-machines' }),
+    samples(`${baseCDN}/mridangam.json`, `${baseCDN}/mrid/`, { prebake: true, tag: 'drum-machines' }),
     samples(
       {
         casio: ['casio/high.wav', 'casio/low.wav', 'casio/noise.wav'],
@@ -145,14 +146,14 @@ export async function prebake() {
           'num/20.wav',
         ],
       },
-      'github:tidalcycles/dirt-samples',
+      `${baseCDN}/Dirt-Samples/`,
       {
         prebake: true,
       },
     ),
   ]);
 
-  aliasBank(`${baseNoTrailing}/tidal-drum-machines-alias.json`);
+  aliasBank(`${baseCDN}/tidal-drum-machines-alias.json`);
 }
 
 const maxPan = noteToMidi('C8');
