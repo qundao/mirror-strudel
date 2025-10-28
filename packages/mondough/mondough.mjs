@@ -5,12 +5,13 @@ import {
   slow,
   seq,
   stepcat,
-  extend,
+  replicate,
   expand,
   pace,
   chooseIn,
   degradeBy,
   silence,
+  bjork,
 } from '@strudel/core';
 import { registerLanguage } from '@strudel/transpiler';
 import { MondoRunner } from 'mondolang';
@@ -36,10 +37,11 @@ lib.square = (...args) => stepcat(...args).setSteps(1);
 lib.angle = (...args) => stepcat(...args).pace(1);
 lib['*'] = fast;
 lib['/'] = slow;
-lib['!'] = extend;
+lib['!'] = replicate;
 lib['@'] = expand;
 lib['%'] = pace;
 lib['?'] = degradeBy; // todo: default 0.5 not working..
+lib['&'] = bjork;
 lib[':'] = tail;
 lib['..'] = range;
 lib['def'] = () => silence;
@@ -85,7 +87,7 @@ function evaluator(node, scope) {
   let pat;
   if (type === 'plain' && typeof variable !== 'undefined') {
     // some function names are not patternable, so we skip reification here
-    if (['!', 'extend', '@', 'expand', 'square', 'angle'].includes(value)) {
+    if (['!', 'extend', '@', 'expand', 'square', 'angle', 'all', 'setcpm', 'setcps'].includes(value)) {
       return variable;
     }
     pat = reify(variable);
@@ -108,7 +110,7 @@ export function mondo(code, offset = 0) {
   return pat.markcss('color: var(--caret,--foreground);text-decoration:underline');
 }
 
-let getLocations = (code, offset) => runner.parser.get_locations(code, offset);
+export let getLocations = (code, offset) => runner.parser.get_locations(code, offset);
 
 export const mondi = (str, offset) => {
   const code = `[${str}]`;

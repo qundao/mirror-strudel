@@ -74,6 +74,7 @@ const fontFamilyOptions = {
   FiraCode: 'FiraCode',
   'FiraCode-SemiBold': 'FiraCode SemiBold',
   teletext: 'teletext',
+  tic80: 'tic80',
   mode7: 'mode7',
   BigBlueTerminal: 'BigBlueTerminal',
   x3270: 'x3270',
@@ -311,7 +312,8 @@ export function SettingsTab({ started }) {
           onClick={() => {
             confirmDialog('Sure?').then((r) => {
               if (r) {
-                settingsMap.set(defaultSettings);
+                const { userPatterns } = settingsMap.get(); // keep current patterns
+                settingsMap.set({ ...defaultSettings, userPatterns });
               }
             });
           }}
