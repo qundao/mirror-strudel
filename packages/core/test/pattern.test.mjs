@@ -1,12 +1,12 @@
 /*
 pattern.test.mjs - <short description TODO>
-Copyright (C) 2022 Strudel contributors - see <https://github.com/tidalcycles/strudel/blob/main/packages/core/test/pattern.test.mjs>
+Copyright (C) 2022 Strudel contributors - see <https://codeberg.org/uzu/strudel/src/branch/main/packages/core/test/pattern.test.mjs>
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details. You should have received a copy of the GNU Affero General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 import Fraction from 'fraction.js';
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import {
   TimeSpan,
@@ -52,7 +52,10 @@ import {
   stackCentre,
   stepcat,
   sometimes,
+  expand,
 } from '../index.mjs';
+
+import { log, logValues } from '../pattern.mjs';
 
 import { steady } from '../signal.mjs';
 
@@ -884,7 +887,7 @@ describe('Pattern', () => {
       );
     });
     it('Doesnt drop haps in the 9th cycle', () => {
-      // fixed with https://github.com/tidalcycles/strudel/commit/72eeaf446e3d5e186d63cc0d2276f0723cde017a
+      // fixed with https://codeberg.org/uzu/strudel/commit/72eeaf446e3d5e186d63cc0d2276f0723cde017a
       expect(sequence(1, 2, 3).ply(2).early(8).firstCycle().length).toBe(6);
     });
   });
@@ -1001,7 +1004,7 @@ describe('Pattern', () => {
   });
   describe('hurry', () => {
     it('Can speed up patterns and sounds', () => {
-      sameFirst(s('a', 'b').hurry(2), s('a', 'b').fast(2).speed(2));
+      sameFirst(s(sequence('a', 'b')).hurry(2), s(sequence('a', 'b')).fast(2).speed(2));
     });
   });
   /*describe('composable functions', () => {
@@ -1179,6 +1182,9 @@ describe('Pattern', () => {
     it('calculates undefined steps as the average', () => {
       expect(sameFirst(stepcat(pure(1), pure(2), pure(3).setSteps(undefined)), fastcat(1, 2, 3)));
     });
+    it('works with auto-reified values', () => {
+      expect(sameFirst(stepcat(expand(3, 'bd'), 'rim'), stepcat(expand(3, 'bd'), pure('rim'))));
+    });
   });
   describe('shrink', () => {
     it('can shrink', () => {
@@ -1265,6 +1271,77 @@ describe('Pattern', () => {
           .fast(5),
         stepcat(slowcat('a', 'b', 'c', 'd', 'e'), slowcat(1, 2, 3, 4, 5).expand(2)).fast(5),
       );
+    });
+  });
+  describe('unjoin', () => {
+    it('destructures a pattern into subcycles', () => {
+      sameFirst(
+        fastcat('a', 'b', 'c', 'd')
+          .unjoin(fastcat(true, fastcat(true, true)))
+          .fmap(fast(2))
+          .join(),
+        fastcat('a', 'b', 'a', 'b', 'c', 'c', 'd', 'd'),
+      );
+    });
+  });
+  describe('into', () => {
+    it('applies a function to subcycles of a pattern', () => {
+      sameFirst(
+        fastcat('a', 'b', 'c', 'd').into(fastcat(fastcat('true', 'true'), 'true'), fast(2)),
+        fastcat('a', 'a', 'b', 'b', 'c', 'd', 'c', 'd'),
+      );
+    });
+  });
+  describe('chunkinto', () => {
+    it('chunks into subcycles', () => {
+      sameFirst(
+        fastcat('a', 'b', 'c').chunkInto(3, fast(2)).fast(3),
+        fastcat(fastcat('a', 'a'), 'b', 'c', 'a', fastcat('b', 'b'), 'c', 'a', 'b', fastcat('c', 'c')),
+      );
+    });
+  });
+  describe('chunkbackinto', () => {
+    it('chunks into subcycles backwards', () => {
+      sameFirst(
+        fastcat('a', 'b', 'c').chunkBackInto(3, fast(2)).fast(3),
+        fastcat('a', 'b', fastcat('c', 'c'), 'a', fastcat('b', 'b'), 'c', fastcat('a', 'a'), 'b', 'c'),
+      );
+    });
+  });
+  describe('log', () => {
+    it('logs to console', () => {
+      const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const pattern = pure('a').log();
+      const haps = pattern.queryArc(0, 1);
+
+      // Force a trigger
+      haps.forEach((hap) => {
+        hap.context?.onTrigger?.(hap);
+      });
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        '%c[hap] 0/1 → 1/1: a',
+        'background-color: black;color:white;border-radius:15px',
+      );
+      mockConsoleLog.mockRestore();
+    });
+  });
+  describe('logValues', () => {
+    it('logs values to console', () => {
+      const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const pattern = pure('a').note('c#').logValues();
+      const haps = pattern.queryArc(0, 1);
+
+      // Force a trigger
+      haps.forEach((hap) => {
+        hap.context?.onTrigger?.(hap);
+      });
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        '%c[hap] value:a note:c#',
+        'background-color: black;color:white;border-radius:15px',
+      );
+      mockConsoleLog.mockRestore();
     });
   });
 });
