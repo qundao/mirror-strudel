@@ -3838,8 +3838,8 @@ exports[`runs examples > example "fast" example index 0 1`] = `
 
 exports[`runs examples > example "fastChunk" example index 0 1`] = `
 [
-  "[ 0/1 → 1/4 | color:red note:0 ]",
-  "[ 1/4 → 1/2 | color:red note:1 ]",
+  "[ 0/1 → 1/4 | note:C2 color:red ]",
+  "[ 1/4 → 1/2 | note:D2 color:red ]",
   "[ 1/2 → 3/4 | note:E2 ]",
   "[ 3/4 → 1/1 | note:F2 ]",
   "[ 1/1 → 5/4 | note:G2 ]",
@@ -3848,8 +3848,8 @@ exports[`runs examples > example "fastChunk" example index 0 1`] = `
   "[ 7/4 → 2/1 | note:C3 ]",
   "[ 2/1 → 9/4 | note:D3 ]",
   "[ 9/4 → 5/2 | note:D2 ]",
-  "[ 5/2 → 11/4 | color:red note:2 ]",
-  "[ 11/4 → 3/1 | color:red note:3 ]",
+  "[ 5/2 → 11/4 | note:E2 color:red ]",
+  "[ 11/4 → 3/1 | note:F2 color:red ]",
   "[ 3/1 → 13/4 | note:G2 ]",
   "[ 13/4 → 7/2 | note:A2 ]",
   "[ 7/2 → 15/4 | note:B2 ]",
