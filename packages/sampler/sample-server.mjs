@@ -9,7 +9,6 @@ import readline from 'readline';
 import os from 'os';
 
 const LOG = !!process.env.LOG || false;
-// eslint-disable-next-line
 const PORT = process.env.PORT || 5432;
 const VALID_AUDIO_EXTENSIONS = ['wav', 'mp3', 'ogg'];
 
