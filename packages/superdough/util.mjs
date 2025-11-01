@@ -80,12 +80,13 @@ export function secondsToCycle(t, cps) {
 // deduces relevant info for sample loading from hap.value and sample definition
 // it encapsulates the core sampler logic into a pure and synchronous function
 // hapValue: Hap.value, bank: sample bank definition for sound "s" (values in strudel.json format)
-export function getCommonSampleInfo(hapValue, bank) {
+export function getCommonSampleInfoFromBank(hapValue, bank) {
   const { s, n = 0 } = hapValue;
   let midi = valueToMidi(hapValue, 36);
-  let transpose = midi - 36; // C3 is middle C;
   let url;
   let index = 0;
+  let {transpose, label} = getCommonSampleInfo(hapValue)
+
   if (Array.isArray(bank)) {
     index = getSoundIndex(n, bank.length);
     url = bank[index];
@@ -102,7 +103,20 @@ export function getCommonSampleInfo(hapValue, bank) {
     index = getSoundIndex(n, bank[closest].length);
     url = bank[closest][index];
   }
-  const label = `${s}:${index}`;
-  return { transpose, url, index, midi, label };
+  label = `${s}:${index}`;
+  return { transpose, url, label };
 }
+
+
+export function getCommonSampleInfo(hapValue) {
+  const { s, n = 0 } = hapValue;
+  let midi = valueToMidi(hapValue, 36);
+  let transpose = midi - 36; // C3 is middle C;
+  const label = `${s}:${n}`;
+  return { transpose, label };
+}
+
+
+
+
 

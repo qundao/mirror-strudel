@@ -1,5 +1,5 @@
 import { getAudioContext, registerSound } from './index.mjs';
-import { getCommonSampleInfo } from './util.mjs';
+import { getCommonSampleInfoFromBank } from './util.mjs';
 import {
   applyFM,
   applyParameterModulators,
@@ -216,7 +216,7 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
     warpmode = Warpmode[warpmode.toUpperCase()] ?? Warpmode.NONE;
   }
   const frequency = getFrequencyFromValue(value);
-  const { url, label } = getCommonSampleInfo(value, tables);
+  const { url, label } = getCommonSampleInfoFromBank(value, tables);
   const payload = await getPayload(url, label, frameLen);
   let holdEnd = t + duration;
   if (clip !== undefined) {

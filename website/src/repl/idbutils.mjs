@@ -1,6 +1,8 @@
-import { registerSampleSource } from '@strudel/webaudio';
+import { getSampleBufferSource, onTriggerSample, registerSampleSource } from '@strudel/webaudio';
 import { isAudioFile } from './files.mjs';
-import { logger } from '@strudel/core';
+import { getSoundIndex, logger } from '@strudel/core';
+import { registerSound } from '@strudel/webaudio';
+import { getCommonSampleInfo } from '../../../packages/superdough/util.mjs';
 
 //utilites for writing and reading to the indexdb
 
@@ -25,6 +27,15 @@ function clearAllIDB() {
 
 export function clearIDB(dbName) {
   return window.indexedDB.deleteDatabase(dbName);
+}
+
+
+function registerSampleFromIdb(key, bank, params) {
+
+  
+
+
+
 }
 
 // queries the DB, and registers the sounds so they can be played
@@ -52,31 +63,76 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
             if (!isAudioFile(title)) {
               return;
             }
+
             const splitRelativePath = soundFile.id.split('/');
             let parentDirectory =
               //fallback to file name before period and seperator if no parent directory
               splitRelativePath[splitRelativePath.length - 2] ?? soundFile.id.split(/\W+/)[0] ?? 'user';
-            const blob = soundFile.blob;
-
-            return blobToDataUrl(blob).then((soundPath) => {
+            
+              // const blob = soundFile.blob;       
+            
               const titlePathMap = sounds.get(parentDirectory) ?? new Map();
 
-              titlePathMap.set(title, soundPath);
-
+              titlePathMap.set(title, soundFile.id);
               sounds.set(parentDirectory, titlePathMap);
-              return;
-            });
+
+
+
+              
+            // return blobToDataUrl(blob).then((soundPath) => {
+            //   const titlePathMap = sounds.get(parentDirectory) ?? new Map();
+
+            //   titlePathMap.set(title, soundPath);
+
+            //   sounds.set(parentDirectory, titlePathMap);
+            //   return;
+            // });
           }),
       )
         .then(() => {
           sounds.forEach((titlePathMap, key) => {
-            const value = Array.from(titlePathMap.keys())
+            const bank = Array.from(titlePathMap.keys())
               .sort((a, b) => {
                 return a.localeCompare(b);
               })
               .map((title) => titlePathMap.get(title));
 
-            registerSampleSource(key, value, { prebake: false });
+              
+
+
+              registerSound(key, async (t, hapValue, onended) => {
+                const { s, n = 0 } = hapValue;
+                const index = getSoundIndex(n, bank.length);
+                 let {transpose, label} = getCommonSampleInfo(hapValue)
+                const  storeKey = bank[index];
+
+                openDB(config, (objectStore) => { 
+                  const getRequest = objectStore.get(storeKey);
+                  getRequest.onsuccess = async (event) => { 
+                    const result = event.target.result;
+                    let buffer = result?.blob.arrayBuffer ? await result.blob.arrayBuffer() : null;
+                    console.info(buffer)
+                    if (buffer) {
+                      const bufferSource = getSampleBufferSource(hapValue,buffer,transpose)
+                      onTriggerSample(t, hapValue, onended, bufferSource)
+                    } else {
+                      logger(`Could not load sample for ${storeKey}`, 'error');
+                    }
+                  };
+                })
+               
+                // const buffer =   objectStore.getKey(key)
+                // const bufferSource = getSampleBufferSource(hapValue,buffer,transpose)
+                 
+                //  onTriggerSample(t, hapValue, onended, await getBufferSrcFromBank(hapValue, bank, undefined))
+              
+               }, {
+                 type: 'sample',
+                 samples: bank,
+                 
+               });
+
+            // registerSampleSource(key, value, { prebake: false });
           });
 
           logger('imported sounds registered!', 'success');

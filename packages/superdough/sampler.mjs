@@ -1,4 +1,4 @@
-import { getCommonSampleInfo } from './util.mjs';
+import { getCommonSampleInfoFromBank } from './util.mjs';
 import { registerSound, registerWaveTable } from './index.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import { getADSRValues, getParamADSR, getPitchEnvelope, getVibratoOscillator } from './helpers.mjs';
@@ -23,34 +23,34 @@ function humanFileSize(bytes, si) {
   return bytes.toFixed(1) + ' ' + units[u];
 }
 
-export function getSampleInfo(hapValue, bank) {
-  const { speed = 1.0 } = hapValue;
-  const { transpose, url, index, midi, label } = getCommonSampleInfo(hapValue, bank);
-  let playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
-  return { transpose, url, index, midi, label, playbackRate };
-}
 
-// takes hapValue and returns buffer + playbackRate.
-export const getSampleBuffer = async (hapValue, bank, resolveUrl) => {
-  let { url: sampleUrl, label, playbackRate } = getSampleInfo(hapValue, bank);
+export const getSampleBuffer = async (label, sampleUrl, resolveUrl) => {
   if (resolveUrl) {
     sampleUrl = await resolveUrl(sampleUrl);
   }
   const ac = getAudioContext();
   const buffer = await loadBuffer(sampleUrl, ac, label);
+  return buffer
+};
 
+function getBufferPlaybackRate(hapValue, buffer, transpose) {
+  const { speed = 1.0 } = hapValue;
+  let playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
   if (hapValue.unit === 'c') {
     playbackRate = playbackRate * buffer.duration;
   }
-  return { buffer, playbackRate };
-};
+  return playbackRate;
+}
+
+
 
 // creates playback ready AudioBufferSourceNode from hapValue
-export function getSampleBufferSource(hapValue, buffer, playbackRate)  {
+export function getSampleBufferSource(hapValue, buffer,transpose) {
   if (hapValue.speed < 0) {
     // should this be cached?
     buffer = reverseBuffer(buffer);
   }
+  const playbackRate = getBufferPlaybackRate(hapValue, buffer, transpose)
   const ac = getAudioContext();
   const bufferSource = ac.createBufferSource();
   bufferSource.buffer = buffer;
@@ -256,7 +256,7 @@ export const samples = async (sampleMap, baseUrl = sampleMap._base || '', option
     sampleMap,
     (key, bank) => {
       registerSampleSource(key, bank, { baseUrl, prebake, tag });
-    }, 
+    },
     baseUrl,
   );
 };
@@ -264,176 +264,93 @@ export const samples = async (sampleMap, baseUrl = sampleMap._base || '', option
 const cutGroups = [];
 
 export async function onTriggerSample(t, value, onended, bufferSrc) {
-    let {
-      s,
-      nudge = 0, // TODO: is this in seconds?
-      cut,
-      loop,
-      clip = undefined, // if set, samples will be cut off when the hap ends
-      n = 0,
-      speed = 1, // sample playback speed
-      duration,
-    } = value;
-  
-    // load sample
-    if (speed === 0) {
-      // no playback
-      return;
-    }
-    const ac = getAudioContext();
-  
-    // destructure adsr here, because the default should be different for synths and samples
-    let [attack, decay, sustain, release] = getADSRValues([value.attack, value.decay, value.sustain, value.release]);
-  
-    const { bufferSource, sliceDuration, offset } = bufferSrc
-  
-    // asny stuff above took too long?
-    if (ac.currentTime > t) {
-      logger(`[sampler] still loading sound "${s}:${n}"`, 'highlight');
-      // console.warn('sample still loading:', s, n);
-      return;
-    }
-    if (!bufferSource) {
-      logger(`[sampler] could not load "${s}:${n}"`, 'error');
-      return;
-    }
-  
-    // vibrato
-    let vibratoOscillator = getVibratoOscillator(bufferSource.detune, value, t);
-  
-    const time = t + nudge;
-    bufferSource.start(time, offset);
-  
-    const envGain = ac.createGain();
-    const node = bufferSource.connect(envGain);
-  
-    // if none of these controls is set, the duration of the sound will be set to the duration of the sample slice
-    if (clip == null && loop == null && value.release == null) {
-      duration = sliceDuration;
-    }
-    let holdEnd = t + duration;
-  
-    getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
-  
-    // pitch envelope
-    getPitchEnvelope(bufferSource.detune, value, t, holdEnd);
-  
-    const out = ac.createGain(); // we need a separate gain for the cutgroups because firefox...
-    node.connect(out);
-    bufferSource.onended = function () {
-      bufferSource.disconnect();
-      vibratoOscillator?.stop();
-      node.disconnect();
-      out.disconnect();
-      onended();
-    };
-    let envEnd = holdEnd + release + 0.01;
-    bufferSource.stop(envEnd);
-    const stop = (endTime) => {
-      bufferSource.stop(endTime);
-    };
-    const handle = { node: out, bufferSource, stop };
-  
-    // cut groups
-    if (cut !== undefined) {
-      const prev = cutGroups[cut];
-      if (prev) {
-        prev.node.gain.setValueAtTime(1, time);
-        prev.node.gain.linearRampToValueAtTime(0, time + 0.01);
-      }
-      cutGroups[cut] = handle;
-    }
-  
-    return handle;
+  let {
+    s,
+    nudge = 0, // TODO: is this in seconds?
+    cut,
+    loop,
+    clip = undefined, // if set, samples will be cut off when the hap ends
+    n = 0,
+    speed = 1, // sample playback speed
+    duration,
+  } = value;
+
+  // load sample
+  if (speed === 0) {
+    // no playback
+    return;
+  }
+  const ac = getAudioContext();
+
+  // destructure adsr here, because the default should be different for synths and samples
+  let [attack, decay, sustain, release] = getADSRValues([value.attack, value.decay, value.sustain, value.release]);
+
+  const { bufferSource, sliceDuration, offset } = bufferSrc
+
+  // asny stuff above took too long?
+  if (ac.currentTime > t) {
+    logger(`[sampler] still loading sound "${s}:${n}"`, 'highlight');
+    // console.warn('sample still loading:', s, n);
+    return;
+  }
+  if (!bufferSource) {
+    logger(`[sampler] could not load "${s}:${n}"`, 'error');
+    return;
   }
 
-// export async function onTriggerSample(t, value, onended, bank, resolveUrl) {
-//   let {
-//     s,
-//     nudge = 0, // TODO: is this in seconds?
-//     cut,
-//     loop,
-//     clip = undefined, // if set, samples will be cut off when the hap ends
-//     n = 0,
-//     speed = 1, // sample playback speed
-//     duration,
-//   } = value;
+  // vibrato
+  let vibratoOscillator = getVibratoOscillator(bufferSource.detune, value, t);
 
-//   // load sample
-//   if (speed === 0) {
-//     // no playback
-//     return;
-//   }
-//   const ac = getAudioContext();
+  const time = t + nudge;
+  bufferSource.start(time, offset);
 
-//   // destructure adsr here, because the default should be different for synths and samples
-//   let [attack, decay, sustain, release] = getADSRValues([value.attack, value.decay, value.sustain, value.release]);
+  const envGain = ac.createGain();
+  const node = bufferSource.connect(envGain);
 
-//   const { bufferSource, sliceDuration, offset } = await getSampleBufferSource(value, bank, resolveUrl);
+  // if none of these controls is set, the duration of the sound will be set to the duration of the sample slice
+  if (clip == null && loop == null && value.release == null) {
+    duration = sliceDuration;
+  }
+  let holdEnd = t + duration;
 
-//   // asny stuff above took too long?
-//   if (ac.currentTime > t) {
-//     logger(`[sampler] still loading sound "${s}:${n}"`, 'highlight');
-//     // console.warn('sample still loading:', s, n);
-//     return;
-//   }
-//   if (!bufferSource) {
-//     logger(`[sampler] could not load "${s}:${n}"`, 'error');
-//     return;
-//   }
+  getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
 
-//   // vibrato
-//   let vibratoOscillator = getVibratoOscillator(bufferSource.detune, value, t);
+  // pitch envelope
+  getPitchEnvelope(bufferSource.detune, value, t, holdEnd);
 
-//   const time = t + nudge;
-//   bufferSource.start(time, offset);
+  const out = ac.createGain(); // we need a separate gain for the cutgroups because firefox...
+  node.connect(out);
+  bufferSource.onended = function () {
+    bufferSource.disconnect();
+    vibratoOscillator?.stop();
+    node.disconnect();
+    out.disconnect();
+    onended();
+  };
+  let envEnd = holdEnd + release + 0.01;
+  bufferSource.stop(envEnd);
+  const stop = (endTime) => {
+    bufferSource.stop(endTime);
+  };
+  const handle = { node: out, bufferSource, stop };
 
-//   const envGain = ac.createGain();
-//   const node = bufferSource.connect(envGain);
+  // cut groups
+  if (cut !== undefined) {
+    const prev = cutGroups[cut];
+    if (prev) {
+      prev.node.gain.setValueAtTime(1, time);
+      prev.node.gain.linearRampToValueAtTime(0, time + 0.01);
+    }
+    cutGroups[cut] = handle;
+  }
 
-//   // if none of these controls is set, the duration of the sound will be set to the duration of the sample slice
-//   if (clip == null && loop == null && value.release == null) {
-//     duration = sliceDuration;
-//   }
-//   let holdEnd = t + duration;
-
-//   getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
-
-//   // pitch envelope
-//   getPitchEnvelope(bufferSource.detune, value, t, holdEnd);
-
-//   const out = ac.createGain(); // we need a separate gain for the cutgroups because firefox...
-//   node.connect(out);
-//   bufferSource.onended = function () {
-//     bufferSource.disconnect();
-//     vibratoOscillator?.stop();
-//     node.disconnect();
-//     out.disconnect();
-//     onended();
-//   };
-//   let envEnd = holdEnd + release + 0.01;
-//   bufferSource.stop(envEnd);
-//   const stop = (endTime) => {
-//     bufferSource.stop(endTime);
-//   };
-//   const handle = { node: out, bufferSource, stop };
-
-//   // cut groups
-//   if (cut !== undefined) {
-//     const prev = cutGroups[cut];
-//     if (prev) {
-//       prev.node.gain.setValueAtTime(1, time);
-//       prev.node.gain.linearRampToValueAtTime(0, time + 0.01);
-//     }
-//     cutGroups[cut] = handle;
-//   }
-
-//   return handle;
-// }
+  return handle;
+}
 
 async function getBufferSrcFromBank(hapValue, bank, resolveUrl = undefined) {
-  let { buffer, playbackRate } = await getSampleBuffer(hapValue, bank, resolveUrl);
-  return getSampleBufferSource(hapValue, buffer, playbackRate)
+  const { transpose, url, label } = getCommonSampleInfoFromBank(hapValue, bank)
+  let buffer = await getSampleBuffer(label,url, resolveUrl);
+  return getSampleBufferSource(hapValue, buffer, transpose)
 }
 
 function registerSample(key, bank, params) {
@@ -443,6 +360,7 @@ function registerSample(key, bank, params) {
     ...params,
   });
 }
+
 
 export function registerSampleSource(key, bank, params) {
   const isWavetable = key.startsWith('wt_');
