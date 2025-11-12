@@ -62,7 +62,7 @@ initStrudel();
 document.getElementById('play').addEventListener('click', 
   () => evaluate('note("c a f e").jux(rev)')
 );
-document.getElementById('play').addEventListener('stop', 
+document.getElementById('stop').addEventListener('click', 
   () => hush()
 );
 ```

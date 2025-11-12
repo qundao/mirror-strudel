@@ -20,5 +20,8 @@
     "@strudel/tonal": "1.2.5",
     "@strudel/transpiler": "1.2.5",
     "@strudel/webaudio": "1.2.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

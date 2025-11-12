@@ -14,5 +14,8 @@
   },
   "dependencies": {
     "@strudel/web": "1.2.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

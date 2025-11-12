@@ -48,5 +48,8 @@
     "@rollup/plugin-replace": "^6.0.2",
     "vite": "^6.0.11",
     "vite-plugin-bundle-audioworklet": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

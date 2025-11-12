@@ -15,5 +15,8 @@
   "type": "module",
   "dependencies": {
     "cowsay": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
