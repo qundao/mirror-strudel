@@ -1,6 +1,6 @@
 export const bumpStreet = `// froos - "22 bump street", licensed with CC BY-NC-SA 4.0
 samples('github:felixroos/samples')
-samples('https://strudel.cc/tidal-drum-machines.json', 'github:ritchse/tidal-drum-machines/main/machines/')
+samples('https://strudel.b-cdn.net/tidal-drum-machines.json', 'github:ritchse/tidal-drum-machines/main/machines/')
 
 "<[0,<6 7 9>,13,<17 20 22 26>]!2>/2"
   // make it 22 edo
@@ -28,13 +28,12 @@ samples('https://strudel.cc/tidal-drum-machines.json', 'github:ritchse/tidal-dru
   .mask("<0@4 1@12>/4")
   .reset("<x@15 [x(3,8) x*[4 8]]>")
   // wait for it...
-).fast(2/3)
+).fast(4/3)
   //.crush(6) // remove "//" if you dare`;
 
 export const trafficFlam = `// froos - "traffic flam", licensed with CC BY-NC-SA 4.0
 
-samples('github:felixroos/samples')
-samples('https://strudel.cc/tidal-drum-machines.json', 'github:ritchse/tidal-drum-machines/main/machines/')
+samples('https://strudel.b-cdn.net/tidal-drum-machines.json', 'github:ritchse/tidal-drum-machines/main/machines/')
 
 addVoicings('hip', {
   m11: ['2M 3m 4P 7m'],
@@ -61,16 +60,14 @@ stack(
     s("rim*4").end(.05).bank('RolandTR808').speed(.8).room(.2)
   )
 )
-  .late("[0 .05]*2").late(12)
-
+  .late("[0 .05]*2").late(12).fast(2)
 `;
 
 export const funk42 = `// froos - how to funk in 42 lines of code
 // adapted from "how to funk in two minutes" by marc rebillet https://www.youtube.com/watch?v=3vBwRfQbXkg
 // thanks to peach for the transcription: https://www.youtube.com/watch?v=8eiPXvIgda4
 
-samples('github:felixroos/samples')
-samples('https://strudel.cc/tidal-drum-machines.json', 'github:ritchse/tidal-drum-machines/main/machines/')
+samples('https://strudel.b-cdn.net/tidal-drum-machines.json', 'github:ritchse/tidal-drum-machines/main/machines/')
 
 setcps(.5)
 
