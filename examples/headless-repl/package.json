@@ -13,6 +13,6 @@
     "vite": "^6.0.11"
   },
   "dependencies": {
-    "@strudel/web": "workspace:*"
+    "@strudel/web": "1.2.6"
   }
 }
