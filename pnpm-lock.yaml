@@ -41,7 +41,7 @@ importers:
         version: 2.2.7
       '@vitest/coverage-v8':
         specifier: 3.0.4
-        version: 3.0.4(vitest@3.0.4(@types/debug@4.1.12)(@types/node@22.10.10)(@vitest/ui@3.0.4)(jiti@2.4.2)(lightningcss@1.29.1)(terser@5.37.0)(yaml@2.7.0))
+        version: 3.0.4(vitest@3.0.4)
       '@vitest/ui':
         specifier: ^3.0.4
         version: 3.0.4(vitest@3.0.4)
@@ -85,29 +85,29 @@ importers:
   examples/codemirror-repl:
     dependencies:
       '@strudel/codemirror':
-        specifier: workspace:*
-        version: link:../../packages/codemirror
+        specifier: 1.2.6
+        version: 1.2.6(@codemirror/lint@6.8.4)
       '@strudel/core':
-        specifier: workspace:*
-        version: link:../../packages/core
+        specifier: 1.2.5
+        version: 1.2.5
       '@strudel/draw':
-        specifier: workspace:*
-        version: link:../../packages/draw
+        specifier: 1.2.5
+        version: 1.2.5
       '@strudel/mini':
-        specifier: workspace:*
-        version: link:../../packages/mini
+        specifier: 1.2.5
+        version: 1.2.5
       '@strudel/soundfonts':
-        specifier: workspace:*
-        version: link:../../packages/soundfonts
+        specifier: 1.2.6
+        version: 1.2.6
       '@strudel/tonal':
-        specifier: workspace:*
-        version: link:../../packages/tonal
+        specifier: 1.2.5
+        version: 1.2.5
       '@strudel/transpiler':
-        specifier: workspace:*
-        version: link:../../packages/transpiler
+        specifier: 1.2.5
+        version: 1.2.5
       '@strudel/webaudio':
-        specifier: workspace:*
-        version: link:../../packages/webaudio
+        specifier: 1.2.6
+        version: 1.2.6
     devDependencies:
       vite:
         specifier: ^6.0.11
@@ -116,8 +116,8 @@ importers:
   examples/headless-repl:
     dependencies:
       '@strudel/web':
-        specifier: workspace:*
-        version: link:../../packages/web
+        specifier: 1.2.6
+        version: 1.2.6
     devDependencies:
       vite:
         specifier: ^6.0.11
@@ -2543,6 +2543,33 @@ packages:
 
   '@sinclair/typebox@0.27.8':
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
+
+  '@strudel/codemirror@1.2.6':
+    resolution: {integrity: sha512-zjKbnbnOY40dlIAQu1poq28rcngYliLsuDwXXVnJsaXzCZSVuXEOMq91LqY4IGz/2QUOIDGm663ziz6Nb4IXeg==}
+
+  '@strudel/core@1.2.5':
+    resolution: {integrity: sha512-XO6ICbfuGfvaQ4sZmfIFsPDcjFez/+AVpNgJnmks5gtMMQNXpr0reuee61tvMiu2k5QYKzxWgzDl2FF9pJeIgA==}
+
+  '@strudel/draw@1.2.5':
+    resolution: {integrity: sha512-ZI4WPxUsVsxgDoeZMHo6VfFf+S1tsj8ubKBeSLcf6lH29JqPp7Nz6tPmbomOV1fzazZ7+xpkC7z772MdtgWy2g==}
+
+  '@strudel/mini@1.2.5':
+    resolution: {integrity: sha512-GmTWSBt49C3ogBy0hjM3bmf6K12PaJ1JJLsEvQu7j5J+lUd2n7GmLYR1UL6fntY4yVqT8ZwMhfUf6vIgUCTNbw==}
+
+  '@strudel/soundfonts@1.2.6':
+    resolution: {integrity: sha512-F7eBhohkCXCMo8WiufSAhD3JCfL5GTgCh9RlOJVT+1swiFeIss1vUAWJR3WjonB6moL8BiuNpcYOqO6i6cFy4A==}
+
+  '@strudel/tonal@1.2.5':
+    resolution: {integrity: sha512-mX3uW0nWH8Sa52HTLwnxlR5BrejFX77abeaiMbp+kQCMrX9I+XRdf8rEr7gdeInB6f/y2TzTVFpnsNsB5jLdoA==}
+
+  '@strudel/transpiler@1.2.5':
+    resolution: {integrity: sha512-mBZWfQBzknvnIYsjjzR8D67A+uIZ1iZ60U2WoXT21q5luXKz2c95RcTpqdx3oOGpLK9K00lDzcKjhQDJtj4OKw==}
+
+  '@strudel/web@1.2.6':
+    resolution: {integrity: sha512-e6VltuX90zZz8JVe1FtN23DCaXA9p8zGDakp5OuUb5kZ5hC6cySFkkOsHdGC6dJ0EAsZSCKXMihRxgk9GhBwKA==}
+
+  '@strudel/webaudio@1.2.6':
+    resolution: {integrity: sha512-4LnyNvyeAXYNmXQGGw2f0chIkDr9Rbwo+SK6Y0p8C3W8juDiOfKq2ihSVph95yaBBPRYFJ5Kttj1kLknRHYsog==}
 
   '@supabase/auth-js@2.67.3':
     resolution: {integrity: sha512-NJDaW8yXs49xMvWVOkSIr8j46jf+tYHV0wHhrwOaLLMZSFO4g6kKAf+MfzQ2RaD06OCUkUHIzctLAxjTgEVpzw==}
@@ -7094,6 +7121,9 @@ packages:
     engines: {node: '>=16 || 14 >=14.17'}
     hasBin: true
 
+  superdough@1.2.6:
+    resolution: {integrity: sha512-zHEFfG+N4zhxJ9lUDf8p4Oj4sdGGQ5SrOPksdc0cKv5Yn0hzlNlMehEa5TkeIfDCiR27Y4H81ks7S8/CGSByhQ==}
+
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
@@ -7101,6 +7131,9 @@ packages:
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
+
+  supradough@1.2.4:
+    resolution: {integrity: sha512-/v3cL9fq05QCQVwbttLHNZcjyyFFz5wdKvg3j6V6moRXpDlQG89l8dQtUIpQvHsxYI5sXNod9rh5bf+Y4NMGeA==}
 
   tabbable@6.2.0:
     resolution: {integrity: sha512-Cat63mxsVJlzYvN51JmVXIgNoUokrIaT2zLclCXjRd8boZ0004U4KCs/sToJ75C6sdlByWxpYnb5Boif1VSFew==}
@@ -10019,6 +10052,79 @@ snapshots:
 
   '@sinclair/typebox@0.27.8': {}
 
+  '@strudel/codemirror@1.2.6(@codemirror/lint@6.8.4)':
+    dependencies:
+      '@codemirror/autocomplete': 6.18.4
+      '@codemirror/commands': 6.8.0
+      '@codemirror/lang-javascript': 6.2.2
+      '@codemirror/language': 6.10.8
+      '@codemirror/search': 6.5.8
+      '@codemirror/state': 6.5.1
+      '@codemirror/view': 6.36.2
+      '@lezer/highlight': 1.2.1
+      '@nanostores/persistent': 0.10.2(nanostores@0.11.3)
+      '@replit/codemirror-emacs': 6.1.0(@codemirror/autocomplete@6.18.4)(@codemirror/commands@6.8.0)(@codemirror/search@6.5.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)
+      '@replit/codemirror-vim': 6.3.0(@codemirror/commands@6.8.0)(@codemirror/language@6.10.8)(@codemirror/search@6.5.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)
+      '@replit/codemirror-vscode-keymap': 6.0.2(@codemirror/autocomplete@6.18.4)(@codemirror/commands@6.8.0)(@codemirror/language@6.10.8)(@codemirror/lint@6.8.4)(@codemirror/search@6.5.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)
+      '@strudel/core': 1.2.5
+      '@strudel/draw': 1.2.5
+      '@strudel/tonal': 1.2.5
+      '@strudel/transpiler': 1.2.5
+      '@tonaljs/tonal': 4.10.0
+      nanostores: 0.11.3
+      superdough: 1.2.6
+    transitivePeerDependencies:
+      - '@codemirror/lint'
+
+  '@strudel/core@1.2.5':
+    dependencies:
+      fraction.js: 5.2.1
+
+  '@strudel/draw@1.2.5':
+    dependencies:
+      '@strudel/core': 1.2.5
+
+  '@strudel/mini@1.2.5':
+    dependencies:
+      '@strudel/core': 1.2.5
+
+  '@strudel/soundfonts@1.2.6':
+    dependencies:
+      '@strudel/core': 1.2.5
+      '@strudel/webaudio': 1.2.6
+      sfumato: 0.1.2
+      soundfont2: 0.5.0
+
+  '@strudel/tonal@1.2.5':
+    dependencies:
+      '@strudel/core': 1.2.5
+      '@tonaljs/tonal': 4.10.0
+      chord-voicings: 0.0.1
+      webmidi: 3.1.12
+
+  '@strudel/transpiler@1.2.5':
+    dependencies:
+      '@strudel/core': 1.2.5
+      '@strudel/mini': 1.2.5
+      acorn: 8.14.0
+      escodegen: 2.1.0
+      estree-walker: 3.0.3
+
+  '@strudel/web@1.2.6':
+    dependencies:
+      '@strudel/core': 1.2.5
+      '@strudel/mini': 1.2.5
+      '@strudel/tonal': 1.2.5
+      '@strudel/transpiler': 1.2.5
+      '@strudel/webaudio': 1.2.6
+
+  '@strudel/webaudio@1.2.6':
+    dependencies:
+      '@strudel/core': 1.2.5
+      '@strudel/draw': 1.2.5
+      superdough: 1.2.6
+      supradough: 1.2.4
+
   '@supabase/auth-js@2.67.3':
     dependencies:
       '@supabase/node-fetch': 2.6.15
@@ -10554,7 +10660,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/coverage-v8@3.0.4(vitest@3.0.4(@types/debug@4.1.12)(@types/node@22.10.10)(@vitest/ui@3.0.4)(jiti@2.4.2)(lightningcss@1.29.1)(terser@5.37.0)(yaml@2.7.0))':
+  '@vitest/coverage-v8@3.0.4(vitest@3.0.4)':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 1.0.2
@@ -15665,11 +15771,17 @@ snapshots:
       pirates: 4.0.6
       ts-interface-checker: 0.1.13
 
+  superdough@1.2.6:
+    dependencies:
+      nanostores: 0.11.3
+
   supports-color@7.2.0:
     dependencies:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
+
+  supradough@1.2.4: {}
 
   tabbable@6.2.0: {}
 
