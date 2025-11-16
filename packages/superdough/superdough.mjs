@@ -7,7 +7,7 @@ This program is free software: you can redistribute it and/or modify it under th
 import './feedbackdelay.mjs';
 import './reverb.mjs';
 import './vowel.mjs';
-import { _mod, clamp, cycleToSeconds, nanFallback, pickAndRename } from './util.mjs';
+import { _mod, clamp, cycleToSeconds, pickAndRename } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
 import {
   createFilter,
@@ -429,7 +429,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     i = getDefaultValue('i'),
     analyze, // analyser wet
     fft = getDefaultValue('fft'), // fftSize 0 - 10
-    FX,
+    FX = [],
     FXrelease,
   } = value;
 
@@ -511,13 +511,12 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
   const chain = []; // audio nodes that will be connected to each other sequentially
   chain.push({ input: sourceNode, output: sourceNode, cleanup });
-  FX = FX ? FX : [value]; // default to using the top-level values if FX is not specified
+  FX = [...FX, value]; // run through the FX chain and then run through all FX outside of it as well
   for (const fx of FX) {
     let {
       gain = getDefaultValue('gain'),
       velocity = getDefaultValue('velocity'),
       shapevol = getDefaultValue('shapevol'),
-      drive = getDefaultValue('drive'),
       distorttype = getDefaultValue('distorttype'),
       distortvol = getDefaultValue('distortvol'),
       tremolodepth = getDefaultValue('tremolodepth'),
@@ -534,8 +533,9 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     shapevol = applyGainCurve(shapevol);
     distortvol = applyGainCurve(distortvol);
     tremolodepth = applyGainCurve(tremolodepth);
+    fx.drive = fx.drive ?? getDefaultValue('drive');
+    fx.fanchor = fx.fanchor ?? getDefaultValue('fanchor');
     fx.stretch !== undefined && chain.push(getWorklet(ac, 'phase-vocoder-processor', { pitchFactor: fx.stretch }));
-    const fanchor = fx.fanchor ?? getDefaultValue('fanchor');
 
     // gain stage
     chain.push(gainNode(gain));
@@ -753,7 +753,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       chain.push({ input: dry, output: sum, cleanup });
     }
   }
-  debugger;
+
   if (FXrelease !== undefined && FXrelease > release) {
     const releaseNode = gainNode(1);
     releaseNode.gain.setValueAtTime(1, end + release);
