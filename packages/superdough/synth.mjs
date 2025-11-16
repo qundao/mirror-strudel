@@ -45,25 +45,16 @@ export function registerSynthSounds() {
           'linear',
           [0.001, 0.05, 0.6, 0.01],
         );
-
-        let sound = getOscillator(s, t, value);
-        let { node: o } = sound;
-
+        const { node: o } = getOscillator(s, t, value);
         // turn down
         const g = gainNode(0.3);
-
-        const { duration } = value;
-
         const cleanup = () => {
           o.disconnect();
           g.disconnect();
         };
-
-        const envGain = gainNode(1);
-        let node = o.connect(g).connect(envGain);
-        const holdEnd = t + duration;
+        const node = o.connect(g).connect(gainNode(1));
+        const holdEnd = t + value.duration;
         getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
-        const envEnd = holdEnd + release + 0.01;
         return {
           node,
           cleanup,
@@ -307,7 +298,6 @@ export function registerSynthSounds() {
         lfo = getLfo(ac, begin, end, { frequency: pwrate, depth: pwsweep });
         lfo.connect(o.parameters.get('pulsewidth'));
       }
-
       const cleanup = () => {
         destroyAudioWorkletNode(o);
         destroyAudioWorkletNode(lfo);
