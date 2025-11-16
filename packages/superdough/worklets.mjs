@@ -6,51 +6,57 @@ import OLAProcessor from './ola-processor';
 import FFT from './fft.js';
 import { getDistortionAlgorithm } from './helpers.mjs';
 
+const blockSize = 128;
+const PI = Math.PI;
+const TWO_PI = 2 * PI;
+const INVSR = 1 / sampleRate;
+
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 const mod = (n, m) => ((n % m) + m) % m;
 const lerp = (a, b, n) => n * (b - a) + a;
 const pv = (arr, n) => arr[n] ?? arr[0];
 const frac = (x) => x - Math.floor(x);
-const ffloor = (x) => x | 0; // fast floor for non-negative
 
-const getUnisonDetune = (unison, detune, voiceIndex) => {
-  if (unison < 2) {
-    return 0;
-  }
-  return lerp(-detune * 0.5, detune * 0.5, voiceIndex / (unison - 1));
+// Fast integer ops for non-negative values
+const ffloor = (x) => x | 0;
+const fround = (x) => ffloor(x + 0.5);
+const fceil = (x) => ffloor(x + 1);
+const ffrac = (x) => x - ffloor(x);
+
+const fast_tanh = (x) => {
+  const x2 = x ** 2;
+  return (x * (27.0 + x2)) / (27.0 + 9.0 * x2);
 };
+
+// Optimized per-voice detuner which precomputes constants
+const getDetuner = (unison, detune) => {
+  if (unison < 2) {
+    return (_voiceIdx) => 0;
+  }
+  const scale = detune / (unison - 1);
+  const center = detune * 0.5;
+  return (voiceIdx) => voiceIdx * scale - center;
+};
+
 const applySemitoneDetuneToFrequency = (frequency, detune) => {
   return frequency * Math.pow(2, detune / 12);
 };
 
-// Restrict phase to the range [0, maxPhase) via wrapping
-function wrapPhase(phase, maxPhase = 1) {
-  if (phase >= maxPhase) {
-    phase -= maxPhase;
-  } else if (phase < 0) {
-    phase += maxPhase;
-  }
-  return phase;
-}
-const blockSize = 128;
 // Smooth waveshape near discontinuities to remove frequencies above Nyquist and prevent aliasing
 // referenced from https://www.kvraudio.com/forum/viewtopic.php?t=375517
 function polyBlep(phase, dt) {
   dt = Math.min(dt, 1 - dt);
+  const invdt = 1 / dt;
   // Start of cycle
   if (phase < dt) {
-    phase /= dt;
-    // 2 * (phase - phase^2/2 - 0.5)
-    return phase + phase - phase * phase - 1;
+    phase *= invdt;
+    return 2 * phase - phase ** 2 - 1;
   }
-
   // End of cycle
   else if (phase > 1 - dt) {
-    phase = (phase - 1) / dt;
-    // 2 * (phase^2/2 + phase + 0.5)
-    return phase * phase + phase + phase + 1;
+    phase = (phase - 1) * invdt;
+    return phase ** 2 + 2 * phase + 1;
   }
-
   // 0 otherwise
   else {
     return 0;
@@ -66,7 +72,7 @@ const waveshapes = {
     return phase / skew;
   },
   sine(phase) {
-    return Math.sin(Math.PI * 2 * phase) * 0.5 + 0.5;
+    return Math.sin(TWO_PI * phase) * 0.5 + 0.5;
   },
   ramp(phase) {
     return phase;
@@ -100,12 +106,6 @@ const waveshapes = {
     return v - polyBlep(phase, dt);
   },
 };
-function getParamValue(block, param) {
-  if (param.length > 1) {
-    return param[block];
-  }
-  return param[0];
-}
 
 const waveShapeNames = Object.keys(waveshapes);
 class LFOProcessor extends AudioWorkletProcessor {
@@ -165,9 +165,9 @@ class LFOProcessor extends AudioWorkletProcessor {
     const blockSize = output[0].length ?? 0;
 
     if (this.phase == null) {
-      this.phase = mod(time * frequency + phaseoffset, 1);
+      this.phase = ffrac(time * frequency + phaseoffset);
     }
-    const dt = frequency / sampleRate;
+    const dt = frequency * INVSR;
     for (let n = 0; n < blockSize; n++) {
       for (let i = 0; i < output.length; i++) {
         let modval = (waveshapes[shape](this.phase, skew) + dcoffset) * depth;
@@ -293,8 +293,8 @@ class TwoPoleFilter {
     // Out of bound values can produce NaNs
     resonance = clamp(resonance, 0, 1);
     cutoff = clamp(cutoff, 0, sampleRate / 2 - 1);
-    const c = clamp(2 * Math.sin(cutoff * (_PI / sampleRate)), 0, 1.14);
-    const r = Math.pow(0.5, (resonance + 0.125) / 0.125);
+    const c = clamp(2 * Math.sin(cutoff * PI * INVSR), 0, 1.14);
+    const r = Math.pow(0.5, 8 * resonance + 1);
     const mrc = 1 - r * c;
     this.s0 = mrc * this.s0 - c * this.s1 + c * s; // bpf
     this.s1 = mrc * this.s1 + c * this.s0; // lpf
@@ -353,11 +353,6 @@ class DJFProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('djf-processor', DJFProcessor);
 
-function fast_tanh(x) {
-  const x2 = x * x;
-  return (x * (27.0 + x2)) / (27.0 + 9.0 * x2);
-}
-const _PI = 3.14159265359;
 //adapted from https://github.com/TheBouteillacBear/webaudioworklet-wasm?tab=MIT-1-ov-file
 class LadderProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -395,7 +390,7 @@ class LadderProcessor extends AudioWorkletProcessor {
     const drive = clamp(Math.exp(parameters.drive[0]), 0.1, 2000);
 
     let cutoff = parameters.frequency[0];
-    cutoff = (cutoff * 2 * _PI) / sampleRate;
+    cutoff = cutoff * TWO_PI * INVSR;
     cutoff = cutoff > 1 ? 1 : cutoff;
 
     const k = Math.min(8, resonance * 0.13);
@@ -508,6 +503,7 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
         name: 'voices',
         defaultValue: 5,
         min: 1,
+        automationRate: 'k-rate',
       },
     ];
   }
@@ -519,40 +515,36 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       // this.port.postMessage({ type: 'onended' });
       return false;
     }
-
     const output = outputs[0];
-
+    const voices = params.voices[0]; // k-rate
     for (let i = 0; i < output[0].length; i++) {
       const detune = pv(params.detune, i);
-      const voices = pv(params.voices, i);
       const freqspread = pv(params.freqspread, i);
       const panspread = pv(params.panspread, i) * 0.5 + 0.5;
-      const gain1 = Math.sqrt(1 - panspread);
-      const gain2 = Math.sqrt(panspread);
+      let gainL = Math.sqrt(1 - panspread);
+      let gainR = Math.sqrt(panspread);
       let freq = pv(params.frequency, i);
       // Main detuning
       freq = applySemitoneDetuneToFrequency(freq, detune / 100);
+      const detuner = getDetuner(voices, freqspread);
       for (let n = 0; n < voices; n++) {
-        const isOdd = (n & 1) == 1;
-        let gainL = gain1;
-        let gainR = gain2;
-        // invert right and left gain
-        if (isOdd) {
-          gainL = gain2;
-          gainR = gain1;
-        }
         // Individual voice detuning
-        const freqVoice = applySemitoneDetuneToFrequency(freq, getUnisonDetune(voices, freqspread, n));
+        const freqVoice = applySemitoneDetuneToFrequency(freq, detuner(n));
         // We must wrap this here because it is passed into sawblep below which
         // has domain [0, 1]
-        const dt = mod(freqVoice / sampleRate, 1);
+        const dt = ffrac(freqVoice * INVSR);
         this.phase[n] = this.phase[n] ?? Math.random();
         const v = waveshapes.sawblep(this.phase[n], dt);
 
-        output[0][i] = output[0][i] + v * gainL;
-        output[1][i] = output[1][i] + v * gainR;
+        output[0][i] += v * gainL;
+        output[1][i] += v * gainR;
 
-        this.phase[n] = wrapPhase(this.phase[n] + dt);
+        let pn = this.phase[n] + dt;
+        if (pn >= 1.0) pn -= 1.0;
+        this.phase[n] = pn;
+        // invert right and left gain
+        gainL = gainR;
+        gainR = gainL;
       }
     }
     return true;
@@ -564,12 +556,16 @@ registerProcessor('supersaw-oscillator', SuperSawOscillatorProcessor);
 // Phase Vocoder sourced from https://github.com/olvb/phaze/tree/master?tab=readme-ov-file
 const BUFFERED_BLOCK_SIZE = 2048;
 
+const hannCache = new Map();
 function genHannWindow(length) {
-  let win = new Float32Array(length);
-  for (var i = 0; i < length; i++) {
-    win[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / length));
+  if (!hannCache.has(length)) {
+    const win = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      win[i] = 0.5 * (1 - Math.cos((TWO_PI * i) / length));
+    }
+    hannCache.set(length, win);
   }
-  return win;
+  return hannCache.get(length);
 }
 
 class PhaseVocoderProcessor extends OLAProcessor {
@@ -587,11 +583,10 @@ class PhaseVocoderProcessor extends OLAProcessor {
       blockSize: BUFFERED_BLOCK_SIZE,
     };
     super(options);
-
-    this.fftSize = this.blockSize;
     this.timeCursor = 0;
-
-    this.hannWindow = genHannWindow(this.blockSize);
+    this.fftSize = this.blockSize;
+    this.invfftSize = 1 / this.fftSize;
+    this.hannWindow = genHannWindow(this.fftSize);
     // prepare FFT and pre-allocate buffers
     this.fft = new FFT(this.fftSize);
     this.freqComplexBuffer = this.fft.createComplexArray();
@@ -604,52 +599,43 @@ class PhaseVocoderProcessor extends OLAProcessor {
 
   processOLA(inputs, outputs, parameters) {
     // no automation, take last value
-
     let pitchFactor = parameters.pitchFactor[parameters.pitchFactor.length - 1];
-
     if (pitchFactor < 0) {
       pitchFactor = pitchFactor * 0.25;
     }
     pitchFactor = Math.max(0, pitchFactor + 1);
-
-    for (var i = 0; i < this.nbInputs; i++) {
-      for (var j = 0; j < inputs[i].length; j++) {
-        // big assumption here: output is symetric to input
-        var input = inputs[i][j];
-        var output = outputs[i][j];
-
+    for (let i = 0; i < this.nbInputs; i++) {
+      for (let j = 0; j < inputs[i].length; j++) {
+        const input = inputs[i][j];
+        const output = outputs[i][j];
         this.applyHannWindow(input);
-
         this.fft.realTransform(this.freqComplexBuffer, input);
-
         this.computeMagnitudes();
         this.findPeaks();
         this.shiftPeaks(pitchFactor);
-
         this.fft.completeSpectrum(this.freqComplexBufferShifted);
         this.fft.inverseTransform(this.timeComplexBuffer, this.freqComplexBufferShifted);
         this.fft.fromComplexArray(this.timeComplexBuffer, output);
         this.applyHannWindow(output);
       }
     }
-
     this.timeCursor += this.hopSize;
   }
 
   /** Apply Hann window in-place */
   applyHannWindow(input) {
-    for (var i = 0; i < this.blockSize; i++) {
-      input[i] = input[i] * this.hannWindow[i] * 1.62;
+    for (let i = 0; i < this.blockSize; i++) {
+      input[i] *= this.hannWindow[i] * 1.62;
     }
   }
 
   /** Compute squared magnitudes for peak finding **/
   computeMagnitudes() {
-    var i = 0,
+    let i = 0,
       j = 0;
     while (i < this.magnitudes.length) {
-      let real = this.freqComplexBuffer[j];
-      let imag = this.freqComplexBuffer[j + 1];
+      const real = this.freqComplexBuffer[j];
+      const imag = this.freqComplexBuffer[j + 1];
       // no need to sqrt for peak finding
       this.magnitudes[i] = real ** 2 + imag ** 2;
       i += 1;
@@ -660,12 +646,10 @@ class PhaseVocoderProcessor extends OLAProcessor {
   /** Find peaks in spectrum magnitudes **/
   findPeaks() {
     this.nbPeaks = 0;
-    var i = 2;
-    let end = this.magnitudes.length - 2;
-
+    let i = 2;
+    const end = this.magnitudes.length - 2;
     while (i < end) {
-      let mag = this.magnitudes[i];
-
+      const mag = this.magnitudes[i];
       if (this.magnitudes[i - 1] >= mag || this.magnitudes[i - 2] >= mag) {
         i++;
         continue;
@@ -674,7 +658,6 @@ class PhaseVocoderProcessor extends OLAProcessor {
         i++;
         continue;
       }
-
       this.peakIndexes[this.nbPeaks] = i;
       this.nbPeaks++;
       i += 2;
@@ -685,53 +668,44 @@ class PhaseVocoderProcessor extends OLAProcessor {
   shiftPeaks(pitchFactor) {
     // zero-fill new spectrum
     this.freqComplexBufferShifted.fill(0);
-
-    for (var i = 0; i < this.nbPeaks; i++) {
-      let peakIndex = this.peakIndexes[i];
-      let peakIndexShifted = Math.round(peakIndex * pitchFactor);
-
+    for (let i = 0; i < this.nbPeaks; i++) {
+      const peakIndex = this.peakIndexes[i];
+      const peakIndexShifted = fround(peakIndex * pitchFactor);
       if (peakIndexShifted > this.magnitudes.length) {
         break;
       }
-
       // find region of influence
-      var startIndex = 0;
-      var endIndex = this.fftSize;
+      let startIndex = 0;
+      let endIndex = this.fftSize;
       if (i > 0) {
-        let peakIndexBefore = this.peakIndexes[i - 1];
-        startIndex = peakIndex - Math.floor((peakIndex - peakIndexBefore) / 2);
+        startIndex = peakIndex - fround((peakIndex - this.peakIndexes[i - 1]) / 2);
       }
       if (i < this.nbPeaks - 1) {
-        let peakIndexAfter = this.peakIndexes[i + 1];
-        endIndex = peakIndex + Math.ceil((peakIndexAfter - peakIndex) / 2);
+        endIndex = peakIndex + fceil((this.peakIndexes[i + 1] - peakIndex) / 2);
       }
-
       // shift whole region of influence around peak to shifted peak
-      let startOffset = startIndex - peakIndex;
-      let endOffset = endIndex - peakIndex;
-      for (var j = startOffset; j < endOffset; j++) {
-        let binIndex = peakIndex + j;
-        let binIndexShifted = peakIndexShifted + j;
-
+      const startOffset = startIndex - peakIndex;
+      const endOffset = endIndex - peakIndex;
+      const omegaDelta = TWO_PI * this.invfftSize * (peakIndexShifted - peakIndex);
+      const phaseShiftReal = Math.cos(omegaDelta * this.timeCursor);
+      const phaseShiftImag = Math.sin(omegaDelta * this.timeCursor);
+      for (let j = startOffset; j < endOffset; j++) {
+        const binIndex = peakIndex + j;
+        const binIndexShifted = peakIndexShifted + j;
         if (binIndexShifted >= this.magnitudes.length) {
           break;
         }
-
         // apply phase correction
-        let omegaDelta = (2 * Math.PI * (binIndexShifted - binIndex)) / this.fftSize;
-        let phaseShiftReal = Math.cos(omegaDelta * this.timeCursor);
-        let phaseShiftImag = Math.sin(omegaDelta * this.timeCursor);
+        const indexReal = 2 * binIndex;
+        const indexImag = indexReal + 1;
+        const valueReal = this.freqComplexBuffer[indexReal];
+        const valueImag = this.freqComplexBuffer[indexImag];
 
-        let indexReal = binIndex * 2;
-        let indexImag = indexReal + 1;
-        let valueReal = this.freqComplexBuffer[indexReal];
-        let valueImag = this.freqComplexBuffer[indexImag];
+        const valueShiftedReal = valueReal * phaseShiftReal - valueImag * phaseShiftImag;
+        const valueShiftedImag = valueReal * phaseShiftImag + valueImag * phaseShiftReal;
 
-        let valueShiftedReal = valueReal * phaseShiftReal - valueImag * phaseShiftImag;
-        let valueShiftedImag = valueReal * phaseShiftImag + valueImag * phaseShiftReal;
-
-        let indexShiftedReal = binIndexShifted * 2;
-        let indexShiftedImag = indexShiftedReal + 1;
+        const indexShiftedReal = 2 * binIndexShifted;
+        const indexShiftedImag = indexShiftedReal + 1;
         this.freqComplexBufferShifted[indexShiftedReal] += valueShiftedReal;
         this.freqComplexBufferShifted[indexShiftedImag] += valueShiftedImag;
       }
@@ -745,11 +719,10 @@ registerProcessor('phase-vocoder-processor', PhaseVocoderProcessor);
 class PulseOscillatorProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.pi = _PI;
-    this.phi = -this.pi; // phase
+    this.phi = -PI; // phase
     this.Y0 = 0; // feedback memories
     this.Y1 = 0;
-    this.PW = this.pi; // pulse width
+    this.PW = PI; // pulse width
     this.B = 2.3; // feedback coefficient
     this.dphif = 0; // filtered phase increment
     this.envf = 0; // filtered envelope
@@ -806,11 +779,11 @@ class PulseOscillatorProcessor extends AudioWorkletProcessor {
       dphi;
 
     for (let i = 0; i < (output[0].length ?? 0); i++) {
-      const pw = (1 - clamp(getParamValue(i, params.pulsewidth), -0.99, 0.99)) * this.pi;
-      const detune = getParamValue(i, params.detune);
-      const freq = applySemitoneDetuneToFrequency(getParamValue(i, params.frequency), detune / 100);
+      const pw = (1 - clamp(pv(params.pulsewidth, i), -0.99, 0.99)) * PI;
+      const detune = pv(params.detune, i);
+      const freq = applySemitoneDetuneToFrequency(pv(params.frequency, i), detune / 100);
 
-      dphi = freq * (this.pi / (sampleRate * 0.5)); // phase increment
+      dphi = freq * TWO_PI * INVSR; // phase increment
       this.dphif += 0.1 * (dphi - this.dphif);
 
       env *= 0.9998; // exponential decay envelope
@@ -822,7 +795,7 @@ class PulseOscillatorProcessor extends AudioWorkletProcessor {
 
       // Waveform generation (half-Tomisawa oscillators)
       this.phi += this.dphif; // phase increment
-      if (this.phi >= this.pi) this.phi -= 2 * this.pi; // phase wrapping
+      if (this.phi >= PI) this.phi -= TWO_PI; // phase wrapping
 
       // First half-Tomisawa generator
       let out0 = Math.cos(this.phi + this.B * this.Y0); // self-phase modulation
@@ -852,24 +825,23 @@ const chyx = {
   /*bit reverse*/ br: function (x, size = 8) {
     if (size > 32) {
       throw new Error('br() Size cannot be greater than 32');
-    } else {
-      let result = 0;
-      for (let idx = 0; idx < size - 0; idx++) {
-        result += chyx.bitC(x, 2 ** idx, 2 ** (size - (idx + 1)));
-      }
-      return result;
     }
+    let result = 0;
+    for (let idx = 0; idx < size; idx++) {
+      result |= chyx.bitC(x, 1 << idx, 1 << (size - (idx + 1)));
+    }
+    return result;
   },
   /*sin that loops every 128 "steps", instead of every pi steps*/ sinf: function (x) {
-    return Math.sin(x / (128 / Math.PI));
+    return Math.sin((x * PI) / 128);
   },
   /*cos that loops every 128 "steps", instead of every pi steps*/ cosf: function (x) {
-    return Math.cos(x / (128 / Math.PI));
+    return Math.cos((x * PI) / 128);
   },
   /*tan that loops every 128 "steps", instead of every pi steps*/ tanf: function (x) {
-    return Math.tan(x / (128 / Math.PI));
+    return Math.tan((x * PI) / 128);
   },
-  /*converts t into a string composed of it's bits, regex's that*/ regG: function (t, X) {
+  /*converts t into a string composed of its bits; regexes that*/ regG: function (t, X) {
     return X.test(t.toString(2));
   },
 };
@@ -877,7 +849,7 @@ const chyx = {
 // Create shortened Math functions
 let mathParams, byteBeatHelperFuncs;
 function getByteBeatFunc(codetext) {
-  if ((mathParams || byteBeatHelperFuncs) == null) {
+  if (mathParams == null) {
     mathParams = Object.getOwnPropertyNames(Math);
     byteBeatHelperFuncs = mathParams.map((k) => Math[k]);
     const chyxNames = Object.getOwnPropertyNames(chyx);
@@ -910,7 +882,7 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
 
       this.func = getByteBeatFunc(codeText);
     };
-    this.initialOffset = null;
+    this.initialOffset = 0;
     this.t = null;
     this.func = null;
   }
@@ -957,18 +929,19 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
       this.t = params.begin[0] * sampleRate;
     }
     const output = outputs[0];
+    const scale = 256 * INVSR;
     for (let i = 0; i < output[0].length; i++) {
-      const detune = getParamValue(i, params.detune);
-      const freq = applySemitoneDetuneToFrequency(getParamValue(i, params.frequency), detune / 100);
-      let local_t = (this.t / (sampleRate / 256)) * freq + this.initialOffset;
+      const detune = pv(params.detune, i);
+      const freq = applySemitoneDetuneToFrequency(pv(params.frequency, i), detune / 100);
+      const local_t = scale * freq * this.t + this.initialOffset;
       const funcValue = this.func(local_t);
-      let signal = (funcValue & 255) / 127.5 - 1;
-      const out = signal * 0.2;
+      const signal = (funcValue & 255) / 127.5 - 1;
+      //prevent speaker blowout via clipping if threshold exceeds
+      const out = clamp(signal * 0.2, -0.4, 0.4);
       for (let c = 0; c < output.length; c++) {
-        //prevent speaker blowout via clipping if threshold exceeds
-        output[c][i] = clamp(out, -0.4, 0.4);
+        output[c][i] = out;
       }
-      this.t = this.t + 1;
+      this.t++;
     }
 
     return true; // keep the audio processing going
@@ -1056,7 +1029,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       { name: 'position', defaultValue: 0, min: 0, max: 1 },
       { name: 'warp', defaultValue: 0, min: 0, max: 1 },
       { name: 'warpMode', defaultValue: 0 },
-      { name: 'voices', defaultValue: 1, min: 1 },
+      { name: 'voices', defaultValue: 1, min: 1, automationRate: 'k-rate' },
       { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
       { name: 'phaserand', defaultValue: 0, min: 0, max: 1 },
     ];
@@ -1067,7 +1040,6 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     this.frameLen = 0;
     this.numFrames = 0;
     this.phase = [];
-    this.invSR = 1 / sampleRate;
 
     this.port.onmessage = (e) => {
       const { type, payload } = e.data || {};
@@ -1104,7 +1076,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
 
   _toBits(amt, min = 2, max = 12) {
     const b = max + (min - max) * amt;
-    return { b, n: Math.round(Math.pow(2, b)) };
+    return { b, n: fround(Math.pow(2, b)) };
   }
 
   _warpPhase(phase, amt, mode) {
@@ -1130,7 +1102,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
         return amt < 0.5 ? this._warpPhase(phase, 1 - 2 * amt, 3) : this._warpPhase(phase, 2 * amt - 1, 2);
       }
       case WarpMode.SYNC: {
-        const syncRatio = Math.pow(16, amt * amt);
+        const syncRatio = Math.pow(16, amt ** 2);
         return (phase * syncRatio) % 1;
       }
       case WarpMode.QUANT: {
@@ -1139,8 +1111,8 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       }
       case WarpMode.FOLD: {
         const K = 7;
-        const k = 1 + Math.max(1, Math.round(K * amt));
-        return Math.abs(frac(k * phase) - 0.5) * 2;
+        const k = 1 + Math.max(1, fround(K * amt));
+        return Math.abs(ffrac(k * phase) - 0.5) * 2;
       }
       case WarpMode.PWM: {
         const w = clamp(0.5 + 0.49 * (2 * amt - 1), 0, 1);
@@ -1150,12 +1122,12 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       case WarpMode.ORBIT: {
         const depth = 0.5 * amt;
         const n = 3;
-        return frac(phase + depth * Math.sin(2 * Math.PI * n * phase));
+        return frac(phase + depth * Math.sin(TWO_PI * n * phase));
       }
       case WarpMode.SPIN: {
         const depth = 0.5 * amt;
         const { n } = this._toBits(amt, 1, 6);
-        return frac(phase + depth * Math.sin(2 * Math.PI * n * phase));
+        return frac(phase + depth * Math.sin(TWO_PI * n * phase));
       }
       case WarpMode.CHAOS: {
         const r = 3.7 + 0.3 * amt;
@@ -1166,7 +1138,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
         const isPrime = (n) => {
           if (n < 2) return false;
           if (n % 2 === 0) return n === 2;
-          for (let d = 3; d * d <= n; d += 2) if (n % d === 0) return false;
+          for (let d = 3; d ** 2 <= n; d += 2) if (n % d === 0) return false;
           return true;
         };
         let { n } = this._toBits(amt, 3);
@@ -1175,17 +1147,11 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       }
       case WarpMode.BINARY: {
         let { b } = this._toBits(amt, 3);
-        b = Math.round(b);
+        b = fround(b);
         const n = 1 << b;
         const idx = ffloor(phase * n);
         const ridx = bitReverse(idx, b);
         return ridx / n;
-      }
-      case WarpMode.MODULAR: {
-        const { n } = this._toBits(amt);
-        const depth = 0.5 * amt;
-        const jump = frac(phase * n) / n;
-        return frac(phase + depth * jump);
       }
       case WarpMode.BROWNIAN: {
         const disp = 0.25 * amt * brownian(64 * phase, 4);
@@ -1209,7 +1175,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       case WarpMode.LOGISTIC: {
         let x = phase;
         const r = 3.6 + 0.4 * amt;
-        const iters = 1 + Math.round(2 * amt);
+        const iters = 1 + fround(2 * amt);
         for (let i = 0; i < iters; i++) x = r * x * (1 - x);
         return clamp(x, 0, 1);
       }
@@ -1222,7 +1188,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
         return (y - y0) / (y1 - y0);
       }
       case WarpMode.FRACTAL: {
-        const d = 0.5 * Math.sin(2 * Math.PI * phase) * amt;
+        const d = 0.5 * Math.sin(TWO_PI * phase) * amt;
         return frac(phase + d);
       }
       case WarpMode.FLIP: {
@@ -1269,6 +1235,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       if (outR !== outL) outR.set(outL);
       return true;
     }
+    const voices = parameters.voices[0]; // k-rate
     for (let i = 0; i < outL.length; i++) {
       const detune = pv(parameters.detune, i);
       const freqspread = pv(parameters.freqspread, i);
@@ -1278,7 +1245,6 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       const frac = idx - fIdx;
       const warpAmount = clamp(pv(parameters.warp, i), 0, 1);
       const warpMode = pv(parameters.warpMode, i);
-      const voices = pv(parameters.voices, i);
       const phaseRand = clamp(pv(parameters.phaserand, i), 0, 1);
       const panspread = voices > 1 ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
       const gain1 = Math.sqrt(0.5 - 0.5 * panspread);
@@ -1286,6 +1252,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       let f = pv(parameters.frequency, i);
       f = applySemitoneDetuneToFrequency(f, detune / 100); // overall detune
       const normalizer = 1 / Math.sqrt(voices);
+      const detuner = getDetuner(voices, freqspread);
       for (let n = 0; n < voices; n++) {
         const isOdd = (n & 1) == 1;
         let gainL = gain1;
@@ -1295,8 +1262,8 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
           gainL = gain2;
           gainR = gain1;
         }
-        const fVoice = applySemitoneDetuneToFrequency(f, getUnisonDetune(voices, freqspread, n)); // voice detune
-        const dPhase = fVoice * this.invSR;
+        const fVoice = applySemitoneDetuneToFrequency(f, detuner(n)); // voice detune
+        const dPhase = fVoice * INVSR;
         const level = this._chooseMip(dPhase);
         const table = this.tables[level];
 
@@ -1311,7 +1278,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
         }
         outL[i] += s * gainL * normalizer;
         outR[i] += s * gainR * normalizer;
-        this.phase[n] = wrapPhase(this.phase[n] + dPhase);
+        this.phase[n] = ffrac(this.phase[n] + dPhase);
       }
     }
     return true;
