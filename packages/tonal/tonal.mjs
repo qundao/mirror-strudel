@@ -5,9 +5,8 @@ This program is free software: you can redistribute it and/or modify it under th
 */
 
 import { Note, Interval, Scale } from '@tonaljs/tonal';
-import { register, _mod, silence, logger, pure, isNote } from '@strudel/core';
+import { register, _mod, logger, isNote, noteToMidi, removeUndefineds, getAccidentalsOffset } from '@strudel/core';
 import { stepInNamedScale, nearestNumberIndex } from './tonleiter.mjs';
-import { noteToMidi } from '../core/util.mjs';
 
 const octavesInterval = (octaves) => (octaves <= 0 ? -1 : 1) + octaves * 7 + 'P';
 
@@ -185,17 +184,15 @@ function _convertStepToNumberAndOffset(step) {
     step = String(step);
     // Check to see if the step matches the expected format:
     // - A number (possibly negative)
-    // - Some number of sharps or flats (but not both)
-    const match = /^(-?\d+)(#+|b+)?$/.exec(step);
+    // - Some number of sharps or flats
+    const match = /^(-?\d+)([#bsf]*)$/.exec(step);
 
     if (!match) {
       throw new Error(`invalid scale step "${step}", expected number or integer with optional # b suffixes`);
     }
     asNumber = Number(match[1]);
-    // These decorations will determine the semitone offset based on the number of
-    // sharps or flats
-    const decorations = match[2] || '';
-    offset = decorations[0] === '#' ? decorations.length : -decorations.length;
+    const accidentals = match[2] || '';
+    offset = getAccidentalsOffset(accidentals);
   }
   return [asNumber, offset];
 }
@@ -226,11 +223,14 @@ function _getNearestScaleNote(scaleName, note, preferHigher = true) {
  * Turns numbers into notes in the scale (zero indexed) or quantizes notes to a scale.
  *
  * When describing notes via numbers, note that negative numbers can be used to wrap backwards
- * in the scale as well as sharps or flats (but not both) to produce notes outside of the scale.
+ * in the scale as well as sharps or flats to produce notes outside of the scale.
  *
  * Also sets scale for other scale operations, like {@link Pattern#scaleTranspose}.
  *
  * A scale consists of a root note (e.g. `c4`, `c`, `f#`, `bb4`) followed by semicolon (':') and then a [scale type](https://github.com/tonaljs/tonal/blob/main/packages/scale-type/data.ts).
+ *
+ * The scale name must be written without spaces (because it would be interpreted as a multi-step pattern otherwise).
+ * If your scale name includes spaces, replace them with colons.
  *
  * The root note defaults to octave 3, if no octave number is given.
  *
@@ -253,8 +253,9 @@ function _getNearestScaleNote(scaleName, note, preferHigher = true) {
  * .s("piano")
  * @example
  * note("C1*16").transpose(irand(36)).scale('Cb2 major').scaleTranspose(3)
+ * @example
+ * n("[0 0] [1 2] [3 4] [5 6]").scale("C:major:blues")
  */
-
 export const scale = register(
   'scale',
   function (scale, pat) {
@@ -262,44 +263,47 @@ export const scale = register(
     if (Array.isArray(scale)) {
       scale = scale.flat().join(' ');
     }
-    return (
-      pat
-        .fmap((value) => {
-          const isObject = typeof value === 'object';
-          // The case where the note has been defined via `n` or `pure`
-          if (!isObject || (isObject && ('n' in value || 'value' in value))) {
-            const step = isObject ? (value.n ?? value.value) : value;
-            delete value.n; // remove n so it won't cause trouble
-            if (isNote(step)) {
-              // legacy..
-              return pure(step);
+    return pat.withHaps((haps) => {
+      haps = haps.map((hap) => {
+        let hVal = hap.value;
+        const isObject = typeof hVal === 'object';
+        // If hVal is a pure value, place it on `n` so that we interpret it as a scale degree
+        hVal = isObject ? hVal : { n: hVal };
+        const { note, n, value, ...otherValues } = hVal;
+        const noteOrStep = note ?? n ?? value;
+        if (noteOrStep === undefined) {
+          logger(
+            `[tonal] Invalid value format for 'scale'. Value must contain n, note, or value but received keys [${Object.keys(hVal).join(', ')}]`,
+            'error',
+          );
+          return hap; // pass the value through unchanged
+        }
+        let scaleNote;
+        if (isNote(noteOrStep)) {
+          // Note case (quantize to scale)
+          scaleNote = _getNearestScaleNote(scale, noteOrStep);
+          hap.value = { ...otherValues, note: scaleNote };
+        } else {
+          // Step case (convert to note in scale)
+          try {
+            const [number, offset] = _convertStepToNumberAndOffset(noteOrStep);
+            if (otherValues.anchor) {
+              scaleNote = stepInNamedScale(number, scale, otherValues.anchor);
+            } else {
+              scaleNote = scaleStep(number, scale);
             }
-            try {
-              const [number, offset] = _convertStepToNumberAndOffset(step);
-              let note;
-              if (isObject && value.anchor) {
-                note = stepInNamedScale(number, scale, value.anchor);
-              } else {
-                note = scaleStep(number, scale);
-              }
-              if (offset != 0) note = Note.transpose(note, Interval.fromSemitones(offset));
-              value = pure(isObject ? { ...value, note } : note);
-            } catch (err) {
-              logger(`[tonal] ${err.message}`, 'error');
-              return silence;
-            }
-            return value;
+            if (offset != 0) scaleNote = Note.transpose(scaleNote, Interval.fromSemitones(offset));
+          } catch (err) {
+            logger(`[tonal] ${err.message}`, 'error');
+            return; // will be removed
           }
-          // The case where the note has been defined via `note`
-          else {
-            const note = _getNearestScaleNote(scale, value.note);
-            return pure(isObject ? { ...value, note } : note);
-          }
-        })
-        .outerJoin()
-        // legacy:
-        .withHap((hap) => hap.setContext({ ...hap.context, scale }))
-    );
+        }
+        hap.value = isObject ? { ...otherValues, note: scaleNote } : scaleNote;
+        // Tag with scale for downsteam scale-aware operations
+        return hap.setContext({ ...hap.context, scale });
+      });
+      return removeUndefineds(haps);
+    });
   },
   true,
   true, // preserve step count

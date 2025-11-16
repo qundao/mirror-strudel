@@ -1,6 +1,6 @@
 {
   "name": "@strudel/hydra",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Hydra integration for strudel",
   "main": "hydra.mjs",
   "type": "module",
@@ -40,5 +40,8 @@
   "devDependencies": {
     "pkg": "^5.8.1",
     "vite": "^6.0.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

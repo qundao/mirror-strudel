@@ -7,7 +7,7 @@ This program is free software: you can redistribute it and/or modify it under th
 import './feedbackdelay.mjs';
 import './reverb.mjs';
 import './vowel.mjs';
-import { _mod, clamp, cycleToSeconds } from './util.mjs';
+import { _mod, clamp, cycleToSeconds, nanFallback, pickAndRename } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
 import {
   createFilter,
@@ -155,11 +155,6 @@ let defaultDefaultValues = {
   gain: 1,
   postgain: 1,
   density: '.03',
-  ftype: '12db',
-  fanchor: 0,
-  resonance: 1,
-  hresonance: 1,
-  bandq: 1,
   channels: [1, 2],
   phaserdepth: 0.75,
   shapevol: 1,
@@ -548,23 +543,27 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     //filter
     const ftype = getFilterType(fx.ftype);
     if (fx.cutoff !== undefined) {
-      let lp = () =>
-        createFilter(
-          ac,
-          'lowpass',
-          fx.cutoff,
-          fx.resonance ?? getDefaultValue('resonance'),
-          fx.lpattack,
-          fx.lpdecay,
-          fx.lpsustain,
-          fx.lprelease,
-          fx.lpenv,
-          t,
-          end,
-          fanchor,
-          fx.ftype,
-          drive,
-        );
+      const lpMap = {
+        frequency: 'cutoff',
+        q: 'resonance',
+        attack: 'lpattack',
+        decay: 'lpdecay',
+        sustain: 'lpsustain',
+        release: 'lprelease',
+        env: 'lpenv',
+        anchor: 'fanchor',
+        model: 'ftype',
+        drive: 'drive',
+        rate: 'lprate',
+        sync: 'lpsync',
+        depth: 'lpdepth',
+        shape: 'lpshape',
+        dcoffset: 'lpdc',
+        skew: 'lpskew',
+      };
+      const lpParams = pickAndRename(fx, lpMap);
+      lpParams.type = 'lowpass';
+      let lp = () => createFilter(ac, t, end, lpParams, cps);
       chain.push(lp());
       if (fx.ftype === '24db') {
         chain.push(lp());
@@ -572,21 +571,27 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     }
 
     if (fx.hcutoff !== undefined) {
-      let hp = () =>
-        createFilter(
-          ac,
-          'highpass',
-          fx.hcutoff,
-          fx.hresonance ?? getDefaultValue('hresonance'),
-          fx.hpattack,
-          fx.hpdecay,
-          fx.hpsustain,
-          fx.hprelease,
-          fx.hpenv,
-          t,
-          end,
-          fanchor,
-        );
+      const hpMap = {
+        frequency: 'hcutoff',
+        q: 'hresonance',
+        attack: 'hpattack',
+        decay: 'hpdecay',
+        sustain: 'hpsustain',
+        release: 'hprelease',
+        env: 'hpenv',
+        anchor: 'fanchor',
+        model: 'ftype',
+        drive: 'drive',
+        rate: 'hprate',
+        sync: 'hpsync',
+        depth: 'hpdepth',
+        shape: 'hpshape',
+        dcoffset: 'hpdc',
+        skew: 'hpskew',
+      };
+      const hpParams = pickAndRename(fx, hpMap);
+      hpParams.type = 'highpass';
+      let hp = () => createFilter(ac, t, end, hpParams, cps);
       chain.push(hp());
       if (fx.ftype === '24db') {
         chain.push(hp());
@@ -594,21 +599,27 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     }
 
     if (fx.bandf !== undefined) {
-      let bp = () =>
-        createFilter(
-          ac,
-          'bandpass',
-          fx.bandf,
-          fx.bandq ?? getDefaultValue('bandq'),
-          fx.bpattack,
-          fx.bpdecay,
-          fx.bpsustain,
-          fx.bprelease,
-          fx.bpenv,
-          t,
-          end,
-          fx.fanchor,
-        );
+      const bpMap = {
+        frequency: 'bandf',
+        q: 'bandq',
+        attack: 'bpattack',
+        decay: 'bpdecay',
+        sustain: 'bpsustain',
+        release: 'bprelease',
+        env: 'bpenv',
+        anchor: 'fanchor',
+        model: 'ftype',
+        drive: 'drive',
+        rate: 'bprate',
+        sync: 'bpsync',
+        depth: 'bpdepth',
+        shape: 'bpshape',
+        dcoffset: 'bpdc',
+        skew: 'bpskew',
+      };
+      const bpParams = pickAndRename(fx, bpMap);
+      bpParams.type = 'bandpass';
+      let bp = () => createFilter(ac, t, end, bpParams, cps);
       chain.push(bp());
       if (ftype === '24db') {
         chain.push(bp());
@@ -742,7 +753,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       chain.push({ input: dry, output: sum, cleanup });
     }
   }
-
+  debugger;
   if (FXrelease !== undefined && FXrelease > release) {
     const releaseNode = gainNode(1);
     releaseNode.gain.setValueAtTime(1, end + release);
@@ -773,7 +784,8 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       roomIR = await loadBuffer(url, ac, ir, 0);
     }
     orbitBus.getReverb(roomsize, roomfade, roomlp, roomdim, roomIR, irspeed, irbegin);
-    orbitBus.sendReverb(post, room);
+    const send = orbitBus.sendReverb(post, room);
+    audioNodes.push(send);
   }
 
   if (djf != null) {

@@ -40,6 +40,12 @@ const pattern = sequence([
 - D-Pad
   - `up`, `down`, `left`, `right` (or `u`, `d`, `l`, `r` or uppercase)
   - Toggle versions: `tglUp`, `tglDown`, `tglLeft`, `tglRight`(or `tglU`, `tglD`, `tglL`, `tglR`)
+- Stick Buttons
+  - `l3`, `r3` (or `ls`, `rs`)
+  - Toggle versions: `tglL3`, `tglR3` (or `tglLS`, `tglRS`)
+- System Buttons
+  - `start`, `back` (or uppercase `START`, `BACK`)
+  - Toggle versions: `tglStart`, `tglBack` (or `tglSTART`, `tglBACK`)
 
 ### Analog Sticks
 - Left Stick

@@ -13,7 +13,7 @@ https://strudel.cc/
 
 After cloning the project, you can run the REPL locally:
 
-1. Install [Node.js](https://nodejs.org/)
+1. Install [Node.js](https://nodejs.org/) 18 or newer
 2. Install [pnpm](https://pnpm.io/installation)
 3. Install dependencies by running the following command:
    ```bash

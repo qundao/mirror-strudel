@@ -1,30 +1,31 @@
 import { closeBrackets } from '@codemirror/autocomplete';
-export { toggleComment, toggleBlockComment, toggleLineComment, toggleBlockCommentByLine } from '@codemirror/commands';
-// import { search, highlightSelectionMatches } from '@codemirror/search';
-import { indentWithTab } from '@codemirror/commands';
+import { indentWithTab, toggleLineComment } from '@codemirror/commands';
 import { javascript, javascriptLanguage } from '@codemirror/lang-javascript';
-import { defaultHighlightStyle, syntaxHighlighting, bracketMatching } from '@codemirror/language';
+import { bracketMatching, defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
 import {
+  drawSelection,
   EditorView,
-  highlightActiveLineGutter,
   highlightActiveLine,
+  highlightActiveLineGutter,
   keymap,
   lineNumbers,
-  drawSelection,
 } from '@codemirror/view';
-import { repl, registerControl } from '@strudel/core';
-import { Drawer, cleanupDraw } from '@strudel/draw';
+import { persistentAtom } from '@nanostores/persistent';
+import { logger, registerControl, repl } from '@strudel/core';
+import { cleanupDraw, Drawer } from '@strudel/draw';
+
 import { isAutoCompletionEnabled } from './autocomplete.mjs';
-import { isTooltipEnabled } from './tooltip.mjs';
+import { basicSetup } from './basicSetup.mjs';
 import { flash, isFlashEnabled } from './flash.mjs';
 import { highlightMiniLocations, isPatternHighlightingEnabled, updateMiniLocations } from './highlight.mjs';
 import { keybindings } from './keybindings.mjs';
-import { initTheme, activateTheme, theme } from './themes.mjs';
 import { sliderPlugin, updateSliderWidgets } from './slider.mjs';
-import { widgetPlugin, updateWidgets } from './widget.mjs';
-import { persistentAtom } from '@nanostores/persistent';
-import { basicSetup } from './basicSetup.mjs';
+import { activateTheme, initTheme, theme } from './themes.mjs';
+import { isTooltipEnabled } from './tooltip.mjs';
+import { updateWidgets, widgetPlugin } from './widget.mjs';
+
+export { toggleBlockComment, toggleBlockCommentByLine, toggleComment, toggleLineComment } from '@codemirror/commands';
 
 const extensions = {
   isLineWrappingEnabled: (on) => (on ? EditorView.lineWrapping : []),
@@ -94,8 +95,8 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
       }),
       sliderPlugin,
       widgetPlugin,
-      // indentOnInput(), // works without. already brought with javascript extension?
-      // bracketMatching(), // does not do anything
+      // indentOnInput(), // works without. already brought with javascript
+      // extension? bracketMatching(), // does not do anything
       syntaxHighlighting(defaultHighlightStyle),
       EditorView.updateListener.of((v) => onChange(v)),
       drawSelection({ cursorBlinkRate: 0 }),
@@ -119,13 +120,13 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
             run: () => onStop?.(),
           },
           /* {
-          key: 'Ctrl-Shift-.',
-          run: () => (onPanic ? onPanic() : onStop?.()),
-        },
-        {
-          key: 'Ctrl-Shift-Enter',
-          run: () => (onReEvaluate ? onReEvaluate() : onEvaluate?.()),
-        }, */
+            key: 'Ctrl-Shift-.',
+            run: () => (onPanic ? onPanic() : onStop?.()),
+          },
+          {
+            key: 'Ctrl-Shift-Enter',
+            run: () => (onReEvaluate ? onReEvaluate() : onEvaluate?.()),
+          }, */
         ]),
       ),
     ],
@@ -206,7 +207,8 @@ export class StrudelMirror {
         updateWidgets(this.editor, widgets);
         updateMiniLocations(this.editor, this.miniLocations);
         replOptions?.afterEval?.(options);
-        // if no painters are set (.onPaint was not called), then we only need the present moment (for highlighting)
+        // if no painters are set (.onPaint was not called), then we only need
+        // the present moment (for highlighting)
         const drawTime = options.pattern.getPainters().length ? this.drawTime : [0, 0];
         this.drawer.setDrawTime(drawTime);
         // invalidate drawer after we've set the appropriate drawTime
@@ -245,6 +247,33 @@ export class StrudelMirror {
       }
     };
     document.addEventListener('start-repl', this.onStartRepl);
+
+    // Handle global evaluation requests (e.g., from Vim :w)
+    this.onEvaluateRequest = (e) => {
+      try {
+        // Evaluate current editor on repl-evaluate
+        logger('[repl] evaluate via event');
+        this.evaluate();
+        e?.cancelable && e.preventDefault?.();
+      } catch (err) {
+        console.error('Error handling repl-evaluate event', err);
+      }
+    };
+    document.addEventListener('repl-evaluate', this.onEvaluateRequest);
+    document.addEventListener('repl-stop', this.onStopRequest);
+
+    // Toggle comments requested from Vim (gc)
+    this.onToggleComment = (e) => {
+      try {
+        // Honor selections; toggleLineComment handles both selections and
+        // single line
+        toggleLineComment(this.editor);
+        e?.cancelable && e.preventDefault?.();
+      } catch (err) {
+        console.error('Error handling repl-toggle-comment event', err);
+      }
+    };
+    document.addEventListener('repl-toggle-comment', this.onToggleComment);
   }
   draw(haps, time, painters) {
     painters?.forEach((painter) => painter(this.drawContext, time, haps, this.drawTime));
@@ -271,6 +300,16 @@ export class StrudelMirror {
   async stop() {
     this.repl.scheduler.stop();
   }
+
+  // Listen for global stop requests (e.g., from Vim :q)
+  onStopRequest = (e) => {
+    try {
+      this.stop();
+      e?.cancelable && e.preventDefault?.();
+    } catch (err) {
+      console.error('Error handling repl-stop event', err);
+    }
+  };
   async toggle() {
     if (this.repl.scheduler.started) {
       this.repl.stop();
@@ -346,11 +385,18 @@ export class StrudelMirror {
     }
   }
   setCode(code) {
-    const changes = { from: 0, to: this.editor.state.doc.length, insert: code };
+    const changes = {
+      from: 0,
+      to: this.editor.state.doc.length,
+      insert: code,
+    };
     this.editor.dispatch({ changes });
   }
   clear() {
     this.onStartRepl && document.removeEventListener('start-repl', this.onStartRepl);
+    this.onEvaluateRequest && document.removeEventListener('repl-evaluate', this.onEvaluateRequest);
+    this.onStopRequest && document.removeEventListener('repl-stop', this.onStopRequest);
+    this.onToggleComment && document.removeEventListener('repl-toggle-comment', this.onToggleComment);
   }
   getCursorLocation() {
     return this.editor.state.selection.main.head;

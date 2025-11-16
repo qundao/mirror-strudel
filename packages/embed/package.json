@@ -20,5 +20,8 @@
   "bugs": {
     "url": "https://codeberg.org/uzu/strudel/issues"
   },
-  "homepage": "https://codeberg.org/uzu/strudel#readme"
+  "homepage": "https://codeberg.org/uzu/strudel#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

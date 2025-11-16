@@ -1,6 +1,6 @@
 {
   "name": "@strudel/mqtt",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "MQTT API for strudel",
   "main": "mqtt.mjs",
   "type": "module",
@@ -34,5 +34,8 @@
   },
   "devDependencies": {
     "vite": "^6.0.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -5,12 +5,13 @@ import {
   slow,
   seq,
   stepcat,
-  extend,
+  replicate,
   expand,
   pace,
   chooseIn,
   degradeBy,
   silence,
+  bjork,
 } from '@strudel/core';
 import { registerLanguage } from '@strudel/transpiler';
 import { MondoRunner } from 'mondolang';
@@ -36,10 +37,11 @@ lib.square = (...args) => stepcat(...args).setSteps(1);
 lib.angle = (...args) => stepcat(...args).pace(1);
 lib['*'] = fast;
 lib['/'] = slow;
-lib['!'] = extend;
+lib['!'] = replicate;
 lib['@'] = expand;
 lib['%'] = pace;
 lib['?'] = degradeBy; // todo: default 0.5 not working..
+lib['&'] = bjork;
 lib[':'] = tail;
 lib['..'] = range;
 lib['def'] = () => silence;

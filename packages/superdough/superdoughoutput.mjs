@@ -78,7 +78,7 @@ export class Orbit {
     return this.reverbNode;
   }
   sendReverb(node, amount) {
-    effectSend(node, this.reverbNode, amount);
+    return effectSend(node, this.reverbNode, amount);
   }
 
   sendDelay(node, amount) {
