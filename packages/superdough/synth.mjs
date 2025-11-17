@@ -181,15 +181,13 @@ export function registerSynthSounds() {
           outputChannelCount: [2],
         },
       );
-
-      const gainAdjustment = 1 / Math.sqrt(voices);
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);
       const vibratoOscillator = getVibratoOscillator(o.parameters.get('detune'), value, begin);
       const fm = applyFM(o.parameters.get('frequency'), value, begin);
       let envGain = gainNode(1);
       envGain = o.connect(envGain);
 
-      getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
+      getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 0.3, begin, holdend, 'linear');
 
       let timeoutNode = webAudioTimeout(
         ac,

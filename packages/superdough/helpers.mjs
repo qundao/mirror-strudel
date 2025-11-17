@@ -1,5 +1,5 @@
 import { getAudioContext } from './audioContext.mjs';
-import { clamp, nanFallback, midiToFreq, noteToMidi } from './util.mjs';
+import { clamp, midiToFreq, nanFallback, noteToMidi } from './util.mjs';
 import { getNoiseBuffer } from './noise.mjs';
 import { logger } from './logger.mjs';
 
@@ -524,4 +524,31 @@ export const destroyAudioWorkletNode = (node) => {
   }
   node.disconnect();
   node.parameters.get('end')?.setValueAtTime(0, 0);
+};
+
+export const getDetuner = (mode = 'linear') => (unison, detune) => {
+  if (unison < 2 || detune === 0) {
+    return () => 0;
+  }
+  const inv = 1 / (unison - 1);
+  const halfRange = detune * 0.5;
+  const curve = (x) => {
+    switch (mode) {
+      case 'super': {
+        return 0.5 * (x + x * x * x);
+      }
+      case 'exp': {
+        return Math.sign(x) * (x ** 2);
+      }
+      case 'inv': {
+        return Math.sign(x) * (1 - x ** 2);
+      }
+      case 'linear': {
+        return x;
+      }
+    }
+  };
+  return (voiceIdx) => {
+    return curve(2 * voiceIdx * inv - 1) * halfRange;
+  };
 };
