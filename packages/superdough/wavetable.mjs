@@ -234,12 +234,19 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
       freqspread: value.detune,
       position: value.wt,
       warp: value.warp,
-      warpMode: warpmode,
-      voices: Math.max(value.unison ?? 1, 1),
       panspread: value.spread,
-      phaserand: (value.wtphaserand ?? value.unison > 1) ? 1 : 0,
+      power: value.dpow,
+      blend: value.dblend,
     },
-    { outputChannelCount: [2] },
+    {
+      outputChannelCount: [2],
+      processorOptions: {
+        voices: Math.max(value.unison ?? 1, 1),
+        stackmode: value.dstack,
+        phaserand: (value.wtphaserand ?? value.unison > 1) ? 1 : 0,
+        warpmode,
+      },
+    },
   );
   source.port.postMessage({ type: 'table', payload });
   if (ac.currentTime > t) {

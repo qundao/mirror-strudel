@@ -444,21 +444,48 @@ class DistortProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('distort-processor', DistortProcessor);
 
-const _getIntervals = (mode = 'none') => {
-  return [1, 2, 4];
-}
+const INTERVALS = [
+  [1],
+  [1, 2],
+  [1, 3],
+  [1, 2, 4],
+  [1, 2, 4, 8],
+  [1, 2, 3],
+  [1, 1.5, 2.4],
+  [1, 2.5],
+  [1, 1.782],
+  [1, 2.4],
+  [1, 1.5, 2.5],
+  [1, 1.667],
+  [1, 2.25],
+];
+const _getIntervals = (mode = 0) => {
+  return INTERVALS[mode] ?? INTERVALS[0];
+};
 
 // SUPERSAW
 class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
   constructor({ processorOptions }) {
     super();
-    this.detuner = getDetuner(processorOptions.detunemode);
     this.intervals = _getIntervals(processorOptions.stackmode);
+    this.intervalGains = this.intervals.map((i) => 1 / i ** 0.5); // reduce volume of upper harmonics
+    this.intNorm = Math.sqrt(1 / this.intervalGains.reduce((acc, i) => acc + i ** 2, 0));
     this.numIntervals = this.intervals.length;
-    const voices = processorOptions.voices;
-    const totalVoices = voices * this.intervals.length;
+    this.voices = processorOptions.voices;
+    this.isDetuned = this.voices > 1;
+    this.isCenter = (idx) => {
+      if (!this.isDetuned) return true;
+      if (this.voices % 2 === 1) {
+        return idx === (this.voices - 1) >> 1;
+      } else {
+        const right = this.voices >> 1;
+        const left = right - 1;
+        return idx === left || idx === right;
+      }
+    };
+    const totalVoices = this.voices * this.intervals.length;
+    this.blendGains = new Array(this.voices).fill(1);
     this.phases = new Array(totalVoices).fill(0).map(() => Math.random());
-    this.normalizer = 1 / Math.sqrt(totalVoices);
   }
   static get parameterDescriptors() {
     return [
@@ -498,7 +525,13 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       {
         name: 'blend',
         defaultValue: 0,
-        min: 0,
+        min: -1,
+        max: 1,
+      },
+      {
+        name: 'power',
+        defaultValue: 0,
+        min: -1,
         max: 1,
       },
     ];
@@ -514,25 +547,34 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < output[0].length; i++) {
       const detune = pv(params.detune, i);
       const freqspread = pv(params.freqspread, i);
+      const blend = pv(params.blend, i) * 0.95;
+      const blendGain = (idx) => (this.isCenter(idx) ? 1 - blend : 1 + blend);
+      const blendGains = this.blendGains.map((_, idx) => blendGain(idx));
+      const blendNorm = 1 / Math.sqrt(blendGains.reduce((acc, g) => acc + g ** 2, 0));
+      const normalizer = blendNorm * this.intNorm;
+      const power = pv(params.power, i);
       const panspread = pv(params.panspread, i) * 0.5 + 0.5;
       let gainL = Math.sqrt(1 - panspread) * normalizer;
       let gainR = Math.sqrt(panspread) * normalizer;
       let freq = pv(params.frequency, i);
       // Main detuning
       freq = applySemitoneDetuneToFrequency(freq, detune / 100);
-      const detuner = this.detuner(voices, freqspread);
-      for (let n = 0; n < voices; n++) {
+      const detuner = getDetuner(freqspread, power);
+      const inv = 1 / (this.voices - 1);
+      for (let n = 0; n < this.voices; n++) {
         // Individual voice detuning
-        const freqVoice = applySemitoneDetuneToFrequency(freq, detuner(n));
+        const freqVoice = this.isDetuned ? applySemitoneDetuneToFrequency(freq, detuner(n * inv)) : f; // voice detune
+        const bG = blendGains[n];
         for (let idx = 0; idx < this.numIntervals; idx++) {
+          const g = bG * this.intervalGains[idx];
           const freqStack = freqVoice * this.intervals[idx];
           // We must wrap this here because it is passed into sawblep below which
           // has domain [0, 1]
           const dt = ffrac(freqStack * INVSR);
-          const voiceNum = n * numIntervals + idx;
+          const voiceNum = n * this.numIntervals + idx;
           const v = waveshapes.sawblep(this.phases[voiceNum], dt);
-          output[0][i] += v * gainL;
-          output[1][i] += v * gainR;
+          output[0][i] += v * gainL * g;
+          output[1][i] += v * gainR * g;
           let pn = this.phases[voiceNum] + dt;
           if (pn >= 1.0) pn -= 1.0;
           this.phases[voiceNum] = pn;
@@ -1119,18 +1161,33 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       { name: 'freqspread', defaultValue: 0.18, min: 0 },
       { name: 'position', defaultValue: 0, min: 0, max: 1 },
       { name: 'warp', defaultValue: 0, min: 0, max: 1 },
-      { name: 'warpMode', defaultValue: 0 },
       { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
+      { name: 'blend', defaultValue: 0, min: -1, max: 1 },
+      { name: 'power', defaultValue: 0, min: -1, max: 1 },
     ];
   }
 
-  constructor(options) {
-    super(options);
-    this.detuner = getDetuner(processorOptions.detunemode);
+  constructor({ processorOptions }) {
+    super();
+    this.warpmode = processorOptions.warpmode;
     this.intervals = _getIntervals(processorOptions.stackmode);
+    this.intervalGains = this.intervals.map((i) => 1 / i ** 0.5); // reduce volume of upper harmonics
+    this.intNorm = Math.sqrt(1 / this.intervalGains.reduce((acc, i) => acc + i ** 2, 0));
     this.numIntervals = this.intervals.length;
-    const voices = processorOptions.voices;
-    const totalVoices = voices * this.intervals.length;
+    this.voices = processorOptions.voices;
+    this.isDetuned = this.voices > 1;
+    this.isCenter = (idx) => {
+      if (!this.isDetuned) return true;
+      if (this.voices % 2 === 1) {
+        return idx === (this.voices - 1) >> 1;
+      } else {
+        const right = this.voices >> 1;
+        const left = right - 1;
+        return idx === left || idx === right;
+      }
+    };
+    const totalVoices = this.voices * this.intervals.length;
+    this.blendGains = new Array(this.voices).fill(1);
     const phaserand = processorOptions.phaserand;
     this.phases = new Array(totalVoices).fill(0).map(() => Math.random() * phaserand);
     this.normalizer = 1 / Math.sqrt(totalVoices);
@@ -1311,7 +1368,8 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
   _chooseMip(dphi) {
     const approxHarm = Math.min(64, 1 / Math.max(1e-6, dphi));
     const numTables = this.tables.length;
-    let level = 0, threshold = this.baseThreshold;
+    let level = 0,
+      threshold = this.baseThreshold;
     while (level + 1 < numTables && approxHarm < threshold) {
       level++;
       threshold *= 2;
@@ -1336,36 +1394,44 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < outL.length; i++) {
       const detune = pv(parameters.detune, i);
       const freqspread = pv(parameters.freqspread, i);
+      const blend = pv(parameters.blend, i) * 0.95;
+      const blendGain = (idx) => (this.isCenter(idx) ? 1 - blend : 1 + blend);
+      const blendGains = this.blendGains.map((_, idx) => blendGain(idx));
+      const blendNorm = 1 / Math.sqrt(blendGains.reduce((acc, g) => acc + g ** 2, 0));
+      const normalizer = blendNorm * this.intNorm;
+      const power = pv(parameters.power, i);
       const tablePos = clamp(pv(parameters.position, i), 0, 1);
       const idx = tablePos * (this.numFrames - 1);
       const fIdx = idx | 0;
       const frac = idx - fIdx;
       const warpAmount = clamp(pv(parameters.warp, i), 0, 1);
-      const warpMode = pv(parameters.warpMode, i);
-      const panspread = voices > 1 ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
-      const gainL = Math.sqrt(0.5 - 0.5 * panspread) * normalizer;
-      const gainR = Math.sqrt(0.5 + 0.5 * panspread) * normalizer;
+      const panspread = this.isDetuned ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
+      let gainL = Math.sqrt(0.5 - 0.5 * panspread) * normalizer;
+      let gainR = Math.sqrt(0.5 + 0.5 * panspread) * normalizer;
       let f = pv(parameters.frequency, i);
       f = applySemitoneDetuneToFrequency(f, detune / 100); // overall detune
-      const detuner = this.detuner(voices, freqspread);
-      for (let n = 0; n < voices; n++) {
-        const fVoice = applySemitoneDetuneToFrequency(f, detuner(n)); // voice detune
+      const detuner = getDetuner(freqspread, power);
+      const inv = 1 / (this.voices - 1);
+      for (let n = 0; n < this.voices; n++) {
+        const fVoice = this.isDetuned ? applySemitoneDetuneToFrequency(f, detuner(n * inv)) : f; // voice detune
+        const bG = blendGains[n];
         for (let idx = 0; idx < this.numIntervals; idx++) {
+          const g = bG * this.intervalGains[idx];
           const fStack = fVoice * this.intervals[idx];
           const dt = fStack * INVSR;
-          const voiceNum = n * numIntervals + idx;
+          const voiceNum = n * this.numIntervals + idx;
           const level = this._chooseMip(dt);
           const table = this.tables[level];
           // warp phase then sample
-          const ph = this._warpPhase(this.phases[voiceNum], warpAmount, warpMode);
+          const ph = this._warpPhase(this.phases[voiceNum], warpAmount, this.warpmode);
           const s0 = this._sampleFrame(table[fIdx], ph);
           const s1 = this._sampleFrame(table[Math.min(this.numFrames - 1, fIdx + 1)], ph);
           let s = s0 + (s1 - s0) * frac;
-          if (warpMode === WarpMode.FLIP && this.phase[n] < warpAmount) {
+          if (this.warpmode === WarpMode.FLIP && this.phase[n] < warpAmount) {
             s = -s;
           }
-          outL[i] += s * gainL;
-          outR[i] += s * gainR;
+          outL[i] += s * gainL * g;
+          outR[i] += s * gainR * g;
           this.phases[voiceNum] = ffrac(this.phases[voiceNum] + dt);
           // invert right and left gain
           gainL = gainR;

@@ -1622,6 +1622,40 @@ export const { unison } = registerControl('unison');
  *
  */
 export const { spread } = registerControl('spread');
+
+/**
+ * Controls how much the detune is concentrated outwards or inwards. A value of 0 will be
+ * linear spacing of voices; -1 will be concentrated outwards (inverse power law); 1 will be concentrated inwards
+ *
+ * @name dpow
+ * @synonyms detunepower
+ * @param {number | Pattern} power between -1 and 1
+ *
+ */
+export const { dpow, detunepower } = registerControl('dpow', 'detunepower');
+
+/**
+ * Controls how much the central voices are emphasized in a detuned oscillator. -1 will emphasize detuned voices;
+ * 1 will emphasize central voices (i.e. either the raw frequency if `unison` is odd or the central two detuned frequencies
+ * if it is even); 0 will be the default blending
+ *
+ * @name dblend
+ * @synonyms detuneblend
+ * @param {number | Pattern} blend between -1 and 1
+ *
+ */
+export const { dblend, detuneblend } = registerControl('dblend', 'detuneblend');
+
+/**
+ * Sets the stacking mode of detuned oscillators
+ *
+ * @name dstack
+ * @synonyms detunestack
+ * @param {number | Pattern} mode mode index starting at 0
+ *
+ */
+export const { dstack, detunestack } = registerControl('dstack', 'detunestack');
+
 /**
  * Set dryness of reverb. See `room` and `size` for more information about reverb.
  *

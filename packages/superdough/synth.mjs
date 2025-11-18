@@ -174,11 +174,16 @@ export function registerSynthSounds() {
           begin,
           end,
           freqspread: detune,
-          voices,
           panspread,
+          power: value.dpow,
+          blend: value.dblend,
         },
         {
           outputChannelCount: [2],
+          processorOptions: {
+            voices,
+            stackmode: value.dstack,
+          },
         },
       );
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);

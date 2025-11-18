@@ -526,29 +526,22 @@ export const destroyAudioWorkletNode = (node) => {
   node.parameters.get('end')?.setValueAtTime(0, 0);
 };
 
-export const getDetuner = (mode = 'linear') => (unison, detune) => {
-  if (unison < 2 || detune === 0) {
+export const getDetuner = (detune = 0, power = 0) => {
+  if (detune <= 0) {
     return () => 0;
   }
-  const inv = 1 / (unison - 1);
-  const halfRange = detune * 0.5;
   const curve = (x) => {
-    switch (mode) {
-      case 'super': {
-        return 0.5 * (x + x * x * x);
-      }
-      case 'exp': {
-        return Math.sign(x) * (x ** 2);
-      }
-      case 'inv': {
-        return Math.sign(x) * (1 - x ** 2);
-      }
-      case 'linear': {
-        return x;
-      }
+    if (power === 0) {
+      return x;
     }
+    const a = Math.abs(x),
+      s = Math.sign(x);
+    if (power > 0) {
+      return s * Math.pow(a, 1 + 4 * power);
+    }
+    return s * (1 - Math.pow(1 - a, 1 - 4 * power));
   };
-  return (voiceIdx) => {
-    return curve(2 * voiceIdx * inv - 1) * halfRange;
+  return (t) => {
+    return curve(2 * t - 1) * detune;
   };
 };
