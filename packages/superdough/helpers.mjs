@@ -518,10 +518,15 @@ export const getFrequencyFromValue = (value, defaultNote = 36) => {
   return Number(freq);
 };
 
-export const destroyAudioWorkletNode = (node) => {
+export const cleanupNode = (node) => {
   if (node == null) {
     return;
   }
   node.disconnect();
-  node.parameters.get('end')?.setValueAtTime(0, 0);
+  node.parameters?.get('end')?.setValueAtTime(0, 0);
+  node.stop?.();
+};
+
+export const cleanupNodes = (nodes) => {
+  nodes.map(cleanupNodes);
 };

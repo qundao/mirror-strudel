@@ -3,14 +3,13 @@ import { getCommonSampleInfo } from './util.mjs';
 import {
   applyFM,
   applyParameterModulators,
-  destroyAudioWorkletNode,
+  cleanupNodes,
   getADSRValues,
   getFrequencyFromValue,
   getParamADSR,
   getPitchEnvelope,
   getVibratoOscillator,
   getWorklet,
-  webAudioTimeout,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
 
@@ -316,12 +315,7 @@ export async function onTriggerSynth(t, value, tables, cps, frameLen) {
   getPitchEnvelope(source.parameters.get('detune'), value, t, holdEnd);
   const handle = { node, source };
   handle.cleanup = () => {
-    destroyAudioWorkletNode(source);
-    vibratoOscillator?.stop();
-    fm?.stop();
-    node.disconnect();
-    wtPosModulators?.disconnect();
-    wtWarpModulators?.disconnect();
+    cleanupNodes([source, vibratoOscillator, fm, node, wtPosModulators, wtWarpModulators]);
   };
   return handle;
 }

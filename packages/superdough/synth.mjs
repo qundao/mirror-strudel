@@ -3,7 +3,7 @@ import { registerSound, soundMap } from './superdough.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import {
   applyFM,
-  destroyAudioWorkletNode,
+  cleanupNodes,
   gainNode,
   getADSRValues,
   getFrequencyFromValue,
@@ -49,8 +49,7 @@ export function registerSynthSounds() {
         // turn down
         const g = gainNode(0.3);
         const cleanup = () => {
-          o.disconnect();
-          g.disconnect();
+          cleanupNodes([o, g]);
         };
         const node = o.connect(g).connect(gainNode(1));
         const holdEnd = t + value.duration;
@@ -97,11 +96,7 @@ export function registerSynthSounds() {
       const mix = gainNode(mixGain);
 
       const cleanup = () => {
-        o.disconnect();
-        g.disconnect();
-        sat.disconnect();
-        noise.node.disconnect();
-        noiseGain.disconnect();
+        cleanupNodes([o, g, sat, noise.node, noiseGain]);
       };
 
       const node = o.connect(sat).connect(g).connect(mix);
@@ -168,9 +163,7 @@ export function registerSynthSounds() {
       getParamADSR(node.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
 
       const cleanup = () => {
-        destroyAudioWorkletNode(o);
-        fm?.stop();
-        vibratoOscillator?.stop();
+        cleanupNodes([o, fm, vibratoOscillator]);
       };
       return {
         node,
@@ -227,15 +220,12 @@ export function registerSynthSounds() {
           outputChannelCount: [2],
         },
       );
-
       o.port.postMessage({ codeText: byteBeatExpression, byteBeatStartTime, frequency });
-
       const node = o.connect(gainNode(1));
-
       getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
 
       const cleanup = () => {
-        destroyAudioWorkletNode(o);
+        cleanupNodes([node, o]);
       };
 
       return {
@@ -299,10 +289,7 @@ export function registerSynthSounds() {
         lfo.connect(o.parameters.get('pulsewidth'));
       }
       const cleanup = () => {
-        destroyAudioWorkletNode(o);
-        destroyAudioWorkletNode(lfo);
-        fm?.stop();
-        vibratoOscillator?.stop();
+        cleanupNodes([o, lfo, fm, vibratoOscillator]);
       };
       return {
         node,
@@ -339,8 +326,7 @@ export function registerSynthSounds() {
         const holdEnd = t + duration;
         getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
         const cleanup = () => {
-          g.disconnect();
-          o.disconnect();
+          cleanupNodes([node, o, g]);
         };
         return {
           node,

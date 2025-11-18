@@ -1,7 +1,7 @@
 import { getCommonSampleInfo } from './util.mjs';
 import { registerSound, registerWaveTable } from './index.mjs';
 import { getAudioContext } from './audioContext.mjs';
-import { getADSRValues, getParamADSR, getPitchEnvelope, getVibratoOscillator } from './helpers.mjs';
+import { getADSRValues, cleanupNodes, getParamADSR, getPitchEnvelope, getVibratoOscillator } from './helpers.mjs';
 import { logger } from './logger.mjs';
 
 const bufferCache = {}; // string: Promise<ArrayBuffer>
@@ -320,9 +320,7 @@ export async function onTriggerSample(t, value, onended, bank, resolveUrl) {
   const out = ac.createGain(); // we need a separate gain for the cutgroups because firefox...
   node.connect(out);
   const cleanup = () => {
-    bufferSource.disconnect();
-    vibratoOscillator?.stop();
-    node.disconnect();
+    cleanupNodes([bufferSource, vibratoOscillator, node]);
   };
   const handle = { node: out, cleanup };
 

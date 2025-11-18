@@ -3,6 +3,7 @@ import { midiToFreq, noteToMidi } from './util.mjs';
 import { registerSound } from './superdough.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import { buildSamples } from './zzfx_fork.mjs';
+import { cleanupNode } from './helpers.mjs';
 
 export const getZZFX = (value, t) => {
   let {
@@ -72,6 +73,9 @@ export const getZZFX = (value, t) => {
   const source = getAudioContext().createBufferSource();
   source.buffer = buffer;
   source.start(t);
+  const cleanup = () => {
+    cleanupNode(source);
+  };
   return {
     node: source,
   };

@@ -1,5 +1,6 @@
 import { noteToMidi, freqToMidi, getSoundIndex } from '@strudel/core';
 import {
+  cleanupNodes,
   getAudioContext,
   registerSound,
   getParamADSR,
@@ -143,7 +144,7 @@ export function registerSoundfonts() {
   Object.entries(gm).forEach(([name, fonts]) => {
     registerSound(
       name,
-      async (time, value, onended) => {
+      async (time, value) => {
         const [attack, decay, sustain, release] = getADSRValues([
           value.attack,
           value.decay,
@@ -161,22 +162,14 @@ export function registerSoundfonts() {
         const node = bufferSource.connect(envGain);
         const holdEnd = time + duration;
         getParamADSR(node.gain, attack, decay, sustain, release, 0, 0.3, time, holdEnd, 'linear');
-        let envEnd = holdEnd + release + 0.01;
-
         // vibrato
         let vibratoOscillator = getVibratoOscillator(bufferSource.detune, value, time);
         // pitch envelope
         getPitchEnvelope(bufferSource.detune, value, time, holdEnd);
-
-        bufferSource.stop(envEnd);
-        const stop = (releaseTime) => {};
-        bufferSource.onended = () => {
-          bufferSource.disconnect();
-          vibratoOscillator?.stop();
-          node.disconnect();
-          onended();
+        const cleanup = () => {
+          cleanupNodes([bufferSource, vibratoOscillator, node]);
         };
-        return { node, stop };
+        return { node, cleanup };
       },
       { type: 'soundfont', prebake: true, fonts },
     );
