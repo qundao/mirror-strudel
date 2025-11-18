@@ -463,29 +463,49 @@ const _getIntervals = (mode = 0) => {
   return INTERVALS[mode] ?? INTERVALS[0];
 };
 
+const initUnisonProcessor = (processor, processorOptions) => {
+  processor.intervals = _getIntervals(processorOptions.stackmode);
+  processor.intervalGains = processor.intervals.map((i) => 1 / i ** 0.5); // reduce volume of upper harmonics
+  processor.intNorm = Math.sqrt(1 / processor.intervalGains.reduce((acc, i) => acc + i ** 2, 0));
+  processor.numIntervals = processor.intervals.length;
+  processor.voices = processorOptions.voices;
+  processor.isDetuned = processor.voices > 1;
+  processor.isCenter = (idx) => {
+    if (!processor.isDetuned) return true;
+    if (processor.voices % 2 === 1) {
+      return idx === (processor.voices - 1) >> 1;
+    } else {
+      const right = processor.voices >> 1;
+      const left = right - 1;
+      return idx === left || idx === right;
+    }
+  };
+  const totalVoices = processor.voices * processor.numIntervals;
+  processor.blendGains = new Array(processor.voices).fill(1);
+  const phaserand = processorOptions.phaserand ?? 1;
+  processor.phases = new Array(totalVoices).fill(0).map(() => Math.random() * phaserand);
+  return totalVoices;
+};
+
+const getUnisonData = (processor, params, i) => {
+  const detune = pv(params.detune, i);
+  const freqspread = pv(params.freqspread, i);
+  const blend = pv(params.blend, i) * 0.95;
+  const blendGains = processor.blendGains.map((_, idx) => (processor.isCenter(idx) ? 1 - blend : 1 + blend));
+  const blendNorm = 1 / Math.sqrt(blendGains.reduce((acc, g) => acc + g ** 2, 0));
+  const normalizer = blendNorm * processor.intNorm;
+  const power = pv(params.power, i);
+  const freq = applySemitoneDetuneToFrequency(pv(params.frequency, i), detune / 100);
+  const detuner = getDetuner(freqspread, power);
+  const inv = processor.voices > 1 ? 1 / (processor.voices - 1) : 0;
+  return { blendGains, normalizer, detuner, inv, freq };
+};
+
 // SUPERSAW
 class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
   constructor({ processorOptions }) {
     super();
-    this.intervals = _getIntervals(processorOptions.stackmode);
-    this.intervalGains = this.intervals.map((i) => 1 / i ** 0.5); // reduce volume of upper harmonics
-    this.intNorm = Math.sqrt(1 / this.intervalGains.reduce((acc, i) => acc + i ** 2, 0));
-    this.numIntervals = this.intervals.length;
-    this.voices = processorOptions.voices;
-    this.isDetuned = this.voices > 1;
-    this.isCenter = (idx) => {
-      if (!this.isDetuned) return true;
-      if (this.voices % 2 === 1) {
-        return idx === (this.voices - 1) >> 1;
-      } else {
-        const right = this.voices >> 1;
-        const left = right - 1;
-        return idx === left || idx === right;
-      }
-    };
-    const totalVoices = this.voices * this.intervals.length;
-    this.blendGains = new Array(this.voices).fill(1);
-    this.phases = new Array(totalVoices).fill(0).map(() => Math.random());
+    initUnisonProcessor(this, processorOptions);
   }
   static get parameterDescriptors() {
     return [
@@ -545,25 +565,13 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
     }
     const output = outputs[0];
     for (let i = 0; i < output[0].length; i++) {
-      const detune = pv(params.detune, i);
-      const freqspread = pv(params.freqspread, i);
-      const blend = pv(params.blend, i) * 0.95;
-      const blendGain = (idx) => (this.isCenter(idx) ? 1 - blend : 1 + blend);
-      const blendGains = this.blendGains.map((_, idx) => blendGain(idx));
-      const blendNorm = 1 / Math.sqrt(blendGains.reduce((acc, g) => acc + g ** 2, 0));
-      const normalizer = blendNorm * this.intNorm;
-      const power = pv(params.power, i);
+      const { blendGains, normalizer, detuner, inv, freq } = getUnisonData(this, params, i);
       const panspread = pv(params.panspread, i) * 0.5 + 0.5;
       let gainL = Math.sqrt(1 - panspread) * normalizer;
       let gainR = Math.sqrt(panspread) * normalizer;
-      let freq = pv(params.frequency, i);
-      // Main detuning
-      freq = applySemitoneDetuneToFrequency(freq, detune / 100);
-      const detuner = getDetuner(freqspread, power);
-      const inv = 1 / (this.voices - 1);
       for (let n = 0; n < this.voices; n++) {
         // Individual voice detuning
-        const freqVoice = this.isDetuned ? applySemitoneDetuneToFrequency(freq, detuner(n * inv)) : f; // voice detune
+        const freqVoice = this.isDetuned ? applySemitoneDetuneToFrequency(freq, detuner(n * inv)) : freq; // voice detune
         const bG = blendGains[n];
         for (let idx = 0; idx < this.numIntervals; idx++) {
           const g = bG * this.intervalGains[idx];
@@ -1170,26 +1178,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
   constructor({ processorOptions }) {
     super();
     this.warpmode = processorOptions.warpmode;
-    this.intervals = _getIntervals(processorOptions.stackmode);
-    this.intervalGains = this.intervals.map((i) => 1 / i ** 0.5); // reduce volume of upper harmonics
-    this.intNorm = Math.sqrt(1 / this.intervalGains.reduce((acc, i) => acc + i ** 2, 0));
-    this.numIntervals = this.intervals.length;
-    this.voices = processorOptions.voices;
-    this.isDetuned = this.voices > 1;
-    this.isCenter = (idx) => {
-      if (!this.isDetuned) return true;
-      if (this.voices % 2 === 1) {
-        return idx === (this.voices - 1) >> 1;
-      } else {
-        const right = this.voices >> 1;
-        const left = right - 1;
-        return idx === left || idx === right;
-      }
-    };
-    const totalVoices = this.voices * this.intervals.length;
-    this.blendGains = new Array(this.voices).fill(1);
-    const phaserand = processorOptions.phaserand;
-    this.phases = new Array(totalVoices).fill(0).map(() => Math.random() * phaserand);
+    const totalVoices = initUnisonProcessor(this, processorOptions);
     this.normalizer = 1 / Math.sqrt(totalVoices);
     this.frameLen = 0;
     this.numFrames = 0;
@@ -1392,14 +1381,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       return true;
     }
     for (let i = 0; i < outL.length; i++) {
-      const detune = pv(parameters.detune, i);
-      const freqspread = pv(parameters.freqspread, i);
-      const blend = pv(parameters.blend, i) * 0.95;
-      const blendGain = (idx) => (this.isCenter(idx) ? 1 - blend : 1 + blend);
-      const blendGains = this.blendGains.map((_, idx) => blendGain(idx));
-      const blendNorm = 1 / Math.sqrt(blendGains.reduce((acc, g) => acc + g ** 2, 0));
-      const normalizer = blendNorm * this.intNorm;
-      const power = pv(parameters.power, i);
+      const { blendGains, normalizer, detuner, inv, freq } = getUnisonData(this, parameters, i);
       const tablePos = clamp(pv(parameters.position, i), 0, 1);
       const idx = tablePos * (this.numFrames - 1);
       const fIdx = idx | 0;
@@ -1408,12 +1390,8 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       const panspread = this.isDetuned ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
       let gainL = Math.sqrt(0.5 - 0.5 * panspread) * normalizer;
       let gainR = Math.sqrt(0.5 + 0.5 * panspread) * normalizer;
-      let f = pv(parameters.frequency, i);
-      f = applySemitoneDetuneToFrequency(f, detune / 100); // overall detune
-      const detuner = getDetuner(freqspread, power);
-      const inv = 1 / (this.voices - 1);
       for (let n = 0; n < this.voices; n++) {
-        const fVoice = this.isDetuned ? applySemitoneDetuneToFrequency(f, detuner(n * inv)) : f; // voice detune
+        const fVoice = this.isDetuned ? applySemitoneDetuneToFrequency(freq, detuner(n * inv)) : freq; // voice detune
         const bG = blendGains[n];
         for (let idx = 0; idx < this.numIntervals; idx++) {
           const g = bG * this.intervalGains[idx];
