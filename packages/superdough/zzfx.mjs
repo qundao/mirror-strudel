@@ -73,9 +73,6 @@ export const getZZFX = (value, t) => {
   const source = getAudioContext().createBufferSource();
   source.buffer = buffer;
   source.start(t);
-  const cleanup = () => {
-    cleanupNode(source);
-  };
   return {
     node: source,
   };
@@ -85,8 +82,12 @@ export function registerZZFXSounds() {
   ['zzfx', 'z_sine', 'z_sawtooth', 'z_triangle', 'z_square', 'z_tan', 'z_noise'].forEach((wave) => {
     registerSound(
       wave,
-      (t, value) => {
+      (t, value, onended) => {
         const { node: o } = getZZFX({ s: wave, ...value }, t);
+        o.onended = () => {
+          cleanupNode(o);
+          onended();
+        };
         return {
           node: o,
           stop: () => {},

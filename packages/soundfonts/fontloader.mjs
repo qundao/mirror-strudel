@@ -144,7 +144,7 @@ export function registerSoundfonts() {
   Object.entries(gm).forEach(([name, fonts]) => {
     registerSound(
       name,
-      async (time, value) => {
+      async (time, value, onended) => {
         const [attack, decay, sustain, release] = getADSRValues([
           value.attack,
           value.decay,
@@ -166,10 +166,13 @@ export function registerSoundfonts() {
         let vibratoOscillator = getVibratoOscillator(bufferSource.detune, value, time);
         // pitch envelope
         getPitchEnvelope(bufferSource.detune, value, time, holdEnd);
-        const cleanup = () => {
+        bufferSource.onended = () => {
           cleanupNodes([bufferSource, vibratoOscillator, node]);
+          onended();
         };
-        return { node, cleanup };
+        const envEnd = holdEnd + release + 0.01;
+        bufferSource.stop(envEnd);
+        return { node, stop: bufferSource.stop };
       },
       { type: 'soundfont', prebake: true, fonts },
     );

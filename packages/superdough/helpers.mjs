@@ -518,15 +518,13 @@ export const getFrequencyFromValue = (value, defaultNote = 36) => {
   return Number(freq);
 };
 
-export const cleanupNode = (node) => {
-  if (node == null) {
-    return;
-  }
-  node.disconnect();
+export const cleanupNode = (node, time) => {
+  if (node == null) return;
+  node.disconnect?.();
   node.parameters?.get('end')?.setValueAtTime(0, 0);
-  node.stop?.();
+  node.stop?.(time);
 };
 
-export const cleanupNodes = (nodes) => {
-  nodes.map(cleanupNodes);
+export const cleanupNodes = (nodes, time) => {
+  nodes.map((n) => cleanupNode(n, time));
 };

@@ -319,10 +319,11 @@ export async function onTriggerSample(t, value, onended, bank, resolveUrl) {
 
   const out = ac.createGain(); // we need a separate gain for the cutgroups because firefox...
   node.connect(out);
-  const cleanup = () => {
+  const stop = () => {
     cleanupNodes([bufferSource, vibratoOscillator, node]);
+    onended();
   };
-  const handle = { node: out, cleanup };
+  const handle = { node: out, stop };
 
   // cut groups
   if (cut !== undefined) {

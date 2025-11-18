@@ -10,6 +10,7 @@ import {
   getPitchEnvelope,
   getVibratoOscillator,
   getWorklet,
+  webAudioTimeout,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
 
@@ -165,8 +166,8 @@ const _processTables = (json, baseUrl, frameLen, options = {}) => {
 export function registerWaveTable(key, tables, params) {
   registerSound(
     key,
-    (t, hapValue, cps) => {
-      return onTriggerSynth(t, hapValue, tables, cps, params?.frameLen ?? 2048);
+    (t, hapValue, onended, cps) => {
+      return onTriggerSynth(t, hapValue, onended, tables, cps, params?.frameLen ?? 2048);
     },
     {
       type: 'wavetable',
@@ -206,7 +207,7 @@ export const tables = async (url, frameLen, json, options = {}) => {
     });
 };
 
-export async function onTriggerSynth(t, value, tables, cps, frameLen) {
+export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   const { s, n = 0, duration, clip } = value;
   const ac = getAudioContext();
   const [attack, decay, sustain, release] = getADSRValues([value.attack, value.decay, value.sustain, value.release]);
@@ -314,8 +315,15 @@ export async function onTriggerSynth(t, value, tables, cps, frameLen) {
   getParamADSR(node.gain, attack, decay, sustain, release, 0, 0.3, t, holdEnd, 'linear');
   getPitchEnvelope(source.parameters.get('detune'), value, t, holdEnd);
   const handle = { node, source };
-  handle.cleanup = () => {
-    cleanupNodes([source, vibratoOscillator, fm, node, wtPosModulators, wtWarpModulators]);
-  };
+  const timeoutNode = webAudioTimeout(
+    ac,
+    () => {
+      cleanupNodes([source, vibratoOscillator, fm, node, wtPosModulators, wtWarpModulators]);
+      onended();
+    },
+    t,
+    envEnd,
+  );
+  handle.stop = timeoutNode.stop;
   return handle;
 }

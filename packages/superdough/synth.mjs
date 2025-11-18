@@ -13,6 +13,7 @@ import {
   getVibratoOscillator,
   getWorklet,
   noises,
+  webAudioTimeout,
 } from './helpers.mjs';
 import { getNoiseMix, getNoiseOscillator } from './noise.mjs';
 
@@ -39,24 +40,27 @@ export function registerSynthSounds() {
   [...waveforms].forEach((s) => {
     registerSound(
       s,
-      (t, value) => {
+      (t, value, onended) => {
         const [attack, decay, sustain, release] = getADSRValues(
           [value.attack, value.decay, value.sustain, value.release],
           'linear',
           [0.001, 0.05, 0.6, 0.01],
         );
-        const { node: o } = getOscillator(s, t, value);
+        const { node: o, stop } = getOscillator(s, t, value);
         // turn down
         const g = gainNode(0.3);
-        const cleanup = () => {
+        o.onended = () => {
           cleanupNodes([o, g]);
+          onended();
         };
         const node = o.connect(g).connect(gainNode(1));
         const holdEnd = t + value.duration;
         getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
+        const envEnd = holdEnd + release + 0.01;
+        stop(envEnd);
         return {
           node,
-          cleanup,
+          stop,
         };
       },
       { type: 'synth', prebake: true },
@@ -65,7 +69,7 @@ export function registerSynthSounds() {
 
   registerSound(
     'sbd',
-    (t, value) => {
+    (t, value, onended) => {
       const { duration, decay = 0.5, pdecay = 0.5, penv = 36, clip } = value;
       const ctx = getAudioContext();
       const attackhold = 0.02;
@@ -95,8 +99,9 @@ export function registerSynthSounds() {
 
       const mix = gainNode(mixGain);
 
-      const cleanup = () => {
+      o.onended = () => {
         cleanupNodes([o, g, sat, noise.node, noiseGain]);
+        onended();
       };
 
       const node = o.connect(sat).connect(g).connect(mix);
@@ -112,9 +117,11 @@ export function registerSynthSounds() {
       mix.gain.setValueAtTime(mixGain, end - 0.01);
       mix.gain.linearRampToValueAtTime(0, end);
 
+      o.stop(end);
+
       return {
         node,
-        cleanup,
+        stop: o.stop,
       };
     },
     { type: 'synth', prebake: true },
@@ -122,7 +129,7 @@ export function registerSynthSounds() {
 
   registerSound(
     'supersaw',
-    (begin, value) => {
+    (begin, value, onended) => {
       const ac = getAudioContext();
       let { duration, n, unison = 5, spread = 0.6, detune } = value;
       detune = detune ?? n ?? 0.18;
@@ -162,12 +169,18 @@ export function registerSynthSounds() {
 
       getParamADSR(node.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
 
-      const cleanup = () => {
-        cleanupNodes([o, fm, vibratoOscillator]);
-      };
+      const timeoutNode = webAudioTimeout(
+        ac,
+        () => {
+          cleanupNodes([o, fm, vibratoOscillator]);
+          onended();
+        },
+        begin,
+        end,
+      );
       return {
         node,
-        cleanup,
+        stop: timeoutNode.stop,
       };
     },
     { prebake: true, type: 'synth' },
@@ -175,7 +188,7 @@ export function registerSynthSounds() {
 
   registerSound(
     'bytebeat',
-    (begin, value) => {
+    (begin, value, onended) => {
       const defaultBeats = [
         '(t%255 >= t/255%255)*255',
         '(t*(t*8%60 <= 300)|(-t)*(t*4%512 < 256))+t/400',
@@ -223,14 +236,18 @@ export function registerSynthSounds() {
       o.port.postMessage({ codeText: byteBeatExpression, byteBeatStartTime, frequency });
       const node = o.connect(gainNode(1));
       getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
-
-      const cleanup = () => {
-        cleanupNodes([node, o]);
-      };
-
+      const timeoutNode = webAudioTimeout(
+        ac,
+        () => {
+          cleanupNodes([node, o]);
+          onended();
+        },
+        begin,
+        end,
+      );
       return {
         node,
-        cleanup,
+        stop: timeoutNode.stop,
       };
     },
     { prebake: true, type: 'synth' },
@@ -238,7 +255,7 @@ export function registerSynthSounds() {
 
   registerSound(
     'pulse',
-    (begin, value) => {
+    (begin, value, onended) => {
       const ac = getAudioContext();
       let { pwrate, pwsweep } = value;
       if (pwsweep == null) {
@@ -288,12 +305,18 @@ export function registerSynthSounds() {
         lfo = getLfo(ac, begin, end, { frequency: pwrate, depth: pwsweep });
         lfo.connect(o.parameters.get('pulsewidth'));
       }
-      const cleanup = () => {
-        cleanupNodes([o, lfo, fm, vibratoOscillator]);
-      };
+      const timeoutNode = webAudioTimeout(
+        ac,
+        () => {
+          cleanupNodes([node, o, lfo, fm, vibratoOscillator]);
+          onended();
+        },
+        begin,
+        end,
+      );
       return {
         node,
-        cleanup,
+        stop: timeoutNode.stop,
       };
     },
     { prebake: true, type: 'synth' },
@@ -302,7 +325,7 @@ export function registerSynthSounds() {
   [...noises].forEach((s) => {
     registerSound(
       s,
-      (t, value) => {
+      (t, value, onended) => {
         const [attack, decay, sustain, release] = getADSRValues(
           [value.attack, value.decay, value.sustain, value.release],
           'linear',
@@ -314,7 +337,7 @@ export function registerSynthSounds() {
         let { density } = value;
         sound = getNoiseOscillator(s, t, density);
 
-        let { node: o } = sound;
+        let { node: o, stop } = sound;
 
         // turn down
         const g = gainNode(0.3);
@@ -325,12 +348,15 @@ export function registerSynthSounds() {
         let node = o.connect(g).connect(envGain);
         const holdEnd = t + duration;
         getParamADSR(node.gain, attack, decay, sustain, release, 0, 1, t, holdEnd, 'linear');
-        const cleanup = () => {
+        o.onended = () => {
           cleanupNodes([node, o, g]);
+          onended();
         };
+        const envEnd = holdEnd + release + 0.01;
+        stop(envEnd);
         return {
           node,
-          cleanup,
+          stop,
         };
       },
       { type: 'synth', prebake: true },
@@ -397,8 +423,14 @@ export function getOscillator(s, t, value) {
   if (noise) {
     noiseMix = getNoiseMix(o, noise, t);
   }
-
+  const stop = (time) => {
+    fmModulator.stop(time);
+    vibratoOscillator?.stop(time);
+    noiseMix?.stop(time);
+    o.stop(time);
+  };
   return {
     node: noiseMix?.node || o,
+    stop,
   };
 }
