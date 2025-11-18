@@ -526,5 +526,5 @@ export const cleanupNode = (node, time) => {
 };
 
 export const cleanupNodes = (nodes, time) => {
-  nodes.map((n) => cleanupNode(n, time));
+  nodes.forEach((n) => cleanupNode(n, time));
 };
