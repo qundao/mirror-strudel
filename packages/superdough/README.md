@@ -89,7 +89,7 @@ superdough({ s: 'bd', delay: 0.5 }, 0, 1);
   - `decay`: seconds of decay phase
   - `sustain`: gain of sustain phase
   - `release`: seconds of release phase
-- `deadline`: seconds until the sound should play (0 = immediate)
+- `deadline`: seconds from audio context initialization before playing the sound (getAudioContextCurrentTime() = immediate)
 - `duration`: seconds the sound should last. optional for one shot samples, required for synth sounds
 
 ### registerSynthSounds()

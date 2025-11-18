@@ -2264,7 +2264,6 @@ export const { tsdelay } = registerControl('tsdelay');
 export const { real } = registerControl('real');
 export const { imag } = registerControl('imag');
 export const { enhance } = registerControl('enhance');
-export const { partials } = registerControl('partials');
 export const { comb } = registerControl('comb');
 export const { smear } = registerControl('smear');
 export const { scram } = registerControl('scram');

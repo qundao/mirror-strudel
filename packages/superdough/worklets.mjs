@@ -950,6 +950,102 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
 
 registerProcessor('byte-beat-processor', ByteBeatProcessor);
 
+class EnvelopeProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: 'begin', defaultValue: 0 },
+      { name: 'end', defaultValue: 0 },
+      { name: 'attack', defaultValue: 0.005, minValue: 0 },
+      { name: 'decay', defaultValue: 0.14, minValue: 0 },
+      { name: 'sustain', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'release', defaultValue: 0.1, minValue: 0 },
+      { name: 'attackCurve', defaultValue: 0, minValue: -1, maxValue: 1 },
+      { name: 'decayCurve', defaultValue: 0, minValue: -1, maxValue: 1 },
+      { name: 'releaseCurve', defaultValue: 0, minValue: -1, maxValue: 1 },
+      { name: 'peak', defaultValue: 1 },
+      { name: 'retrigger', defaultValue: 1, minValue: 0, maxValue: 1 },
+    ];
+  }
+
+  constructor() {
+    super();
+    this.val = 0;
+    this.segIdx = 0;
+    this.state = 0;
+    this.beginTime = 0;
+    this.endTime = 0;
+    this.attackStart = 0;
+  }
+
+  _warp(phase, curvature, strength = 8) {
+    if (phase === 0 || phase === 1) return phase; // fast exit
+    if (curvature > 0) {
+      // snappier
+      const exp = 1 + strength * curvature;
+      return 1 - Math.pow(1 - phase, exp);
+    } else {
+      // more calm
+      const exp = 1 - strength * curvature;
+      return Math.pow(phase, exp);
+    }
+  }
+
+  _advance(start, target, time, curvature) {
+    if (time === 0 || start === target) {
+      this.val = target;
+    } else {
+      // We compute our progress through this section of the envelope in time
+      // as a `phase` value, which is warped by the curvature, and then used
+      // to compute the value of the envelope at that time
+      const phase = Math.min(1, (currentTime - this.beginTime) / time);
+      const phaseWarped = this._warp(phase, curvature);
+      this.val = start + (target - start) * phaseWarped;
+    }
+  }
+
+  process(_inputs, outputs, params) {
+    const out = outputs[0][0];
+    if (!out) return true;
+    const begin = pv(params.begin, 0);
+    const retrigger = pv(params.retrigger, 0) >= 0.5; // convert to bool
+    if (begin !== this.beginTime && (this.state === 0 || retrigger)) {
+      // triggered
+      this.beginTime = begin;
+      this.state = 1;
+      this.endTime = pv(params.end, 0);
+      this.attackStart = this.val;
+    }
+    const susTime = this.endTime - this.beginTime;
+    for (let i = 0; i < out.length; i++) {
+      const attack = pv(params.attack, i);
+      const decay = pv(params.decay, i);
+      const sustain = pv(params.sustain, i);
+      const release = pv(params.release, i);
+      const aCurve = pv(params.attackCurve, i);
+      const dCurve = pv(params.decayCurve, i);
+      const rCurve = pv(params.releaseCurve, i);
+      const peak = pv(params.peak, i);
+      const states = [
+        { time: Number.POSITIVE_INFINITY, start: 0, target: 0 }, // idle
+        { time: attack, start: this.attackStart, target: 1, curve: aCurve },
+        { time: attack + decay, start: 1, target: sustain, curve: dCurve },
+        { time: susTime, start: sustain, target: sustain },
+        { time: susTime + release, start: sustain, target: 0, curve: rCurve },
+      ];
+      let { time, start, target, curve } = states[this.state];
+      this._advance(start, target, time, curve);
+      while (currentTime - this.beginTime >= time) {
+        this.state = (this.state + 1) % states.length;
+        time = states[this.state].time;
+      }
+      out[i] = this.val * peak;
+    }
+    return true;
+  }
+}
+
+registerProcessor('envelope-processor', EnvelopeProcessor);
+
 export const WarpMode = Object.freeze({
   NONE: 0,
   ASYM: 1,
