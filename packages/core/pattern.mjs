@@ -3689,17 +3689,24 @@ export const phases = (list) => {
 };
 
 /**
- * Establishes an FX chain. Can be called by chaining .FX(<fx1>).FX(<fx2>)..
- * calls and/or in a single .FX(<fx1>, <fx2>, ..) call. The <fx1>, .. are _patterns_ which
- * establish the controls of the given effect. See examples.
- * @name FX
+ * Establishes a signal chain. Can be called in sequence like pat.chain(...).chain(...) and so forth
+ * and/or in a single .chain(..., ..., etc) call. The arguments to `chain` are _patterns_ which each act like
+ * a self-contained pattern and follow the normal [signal chain](https://strudel.cc/learn/effects/).
+ *
+ * If multiple sound generators are present within the chain, they will be mixed in at the location where
+ * they are declared.
+ *
+ * @name chain
  * @memberof Pattern
+ * @param {Pattern | Pattern[]} patterns Patterns to combine into a single chain
  * @returns Pattern
  */
-Pattern.prototype.FX = function (...effects) {
-  effects = effects.map(reify);
+Pattern.prototype.chain = function (...pats) {
+  pats = pats.map(reify);
   return this.withValue((v) => (vEff) => {
-    const currFX = v.FX ?? [];
-    return { ...v, FX: currFX.concat(vEff) };
-  }).appLeft(parray(effects));
+    const currChain = v.chain ?? [];
+    return { ...v, chain: currChain.concat(vEff) };
+  }).appLeft(parray(pats));
 };
+
+export const chain = (pats) => pure({}).chain(pats);
