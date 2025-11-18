@@ -1177,9 +1177,8 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
 
   constructor({ processorOptions }) {
     super();
+    initUnisonProcessor(this, processorOptions);
     this.warpmode = processorOptions.warpmode;
-    const totalVoices = initUnisonProcessor(this, processorOptions);
-    this.normalizer = 1 / Math.sqrt(totalVoices);
     this.frameLen = 0;
     this.numFrames = 0;
     this.port.onmessage = (e) => {
