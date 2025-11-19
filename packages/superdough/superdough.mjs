@@ -483,7 +483,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   for (const ch of subChains) {
     fullRelease = Math.max(fullRelease, ch.release ?? 0);
   }
-  const endWithRelease = end + fullRelease + 0.02;
+  const fullEndWithRelease = end + fullRelease + 0.02;
   // The following ensures we run through the value once as normal _and then_ through all the subchains
   subChains = [value, ...subChains];
   let prev;
@@ -491,7 +491,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     const audioNodes = [];
     const chain = [];
     ch.duration = hapDuration;
-    ch.release = fullRelease;
+    const endWithRelease = end + Math.max(release, ch.release ?? 0);
     const chainID = Math.round(Math.random() * 1000000);
     // get source AudioNode
     let sourceNode;
@@ -500,11 +500,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       chain.push(sourceNode);
     } else if (ch.s !== undefined && getSound(ch.s)) {
       const { onTrigger } = getSound(ch.s);
-      const onEnded = () => {
-        audioNodes.forEach((n) => n?.disconnect());
-        activeSoundSources.delete(chainID);
-      };
-      const soundHandle = await onTrigger(t, ch, onEnded, cps);
+      const soundHandle = await onTrigger(t, ch, () => {}, cps);
       if (soundHandle) {
         sourceNode = soundHandle.node;
         activeSoundSources.set(chainID, new WeakRef(soundHandle)); // allow GC
@@ -540,7 +536,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
         activeSoundSources.delete(chainID);
       },
       0,
-      endWithRelease,
+      fullEndWithRelease,
     );
     let {
       gain = getDefaultValue('gain'),
@@ -845,7 +841,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       outerAudioNodes.forEach((n) => n?.disconnect?.());
     },
     0,
-    endWithRelease,
+    fullEndWithRelease,
   );
 };
 
