@@ -471,8 +471,6 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     activeSoundSources.delete(chainID);
   }
 
-  let audioNodes = [];
-
   if (['-', '~', '_'].includes(s)) {
     return;
   }
@@ -480,27 +478,38 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     s = `${bank}_${s}`;
     value.s = s;
   }
+  const end = t + hapDuration;
+  let fullRelease = release;
+  for (const ch of subChains) {
+    fullRelease = Math.max(fullRelease, ch.release ?? 0);
+  }
+  const endWithRelease = end + fullRelease + 0.02;
   // The following ensures we run through the value once as normal _and then_ through all the subchains
   subChains = [value, ...subChains];
   let prev;
   for (const ch of subChains) {
+    const audioNodes = [];
     const chain = [];
     ch.duration = hapDuration;
+    ch.release = fullRelease;
     const chainID = Math.round(Math.random() * 1000000);
     // get source AudioNode
-    let sourceNode, stop;
+    let sourceNode;
     if (source) {
       sourceNode = source(t, ch, hapDuration, cps);
       chain.push(sourceNode);
     } else if (ch.s !== undefined && getSound(ch.s)) {
       const { onTrigger } = getSound(ch.s);
-      const soundHandle = await onTrigger(t, ch, () => {}, cps);
+      const onEnded = () => {
+        audioNodes.forEach((n) => n?.disconnect());
+        activeSoundSources.delete(chainID);
+      };
+      const soundHandle = await onTrigger(t, ch, onEnded, cps);
       if (soundHandle) {
         sourceNode = soundHandle.node;
-        stop = soundHandle.stop;
         activeSoundSources.set(chainID, new WeakRef(soundHandle)); // allow GC
       }
-      chain.push({ input: sourceNode, output: sourceNode, stop });
+      chain.push(sourceNode);
     } else if (ch.s !== undefined) {
       throw new Error(`sound ${ch.s} not found! Is it loaded?`);
     }
@@ -524,15 +533,10 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
         getParamADSR(adsrNode.gain, attack, decay, sustain, release, 0, 1, t, t + hapDuration, 'linear');
       }
     }
-    const end = t + hapDuration;
-    const fullRelease = Math.max(release, ch.release ?? 0);
-    const endWithRelease = end + fullRelease;
     webAudioTimeout(
       ac,
       () => {
-        audioNodes.forEach((n) => {
-          cleanupNode(n?.output ?? n, endWithRelease + 0.01);
-        });
+        audioNodes.forEach((n) => n?.disconnect());
         activeSoundSources.delete(chainID);
       },
       0,
@@ -724,7 +728,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       dry.connect(dryDelay).connect(sum);
       dry.connect(delayNode).connect(wetDelay).connect(sum);
       const stop = () => cleanupNodes([dryDelay, delayNode, dry, wetDelay]);
-      chain.push({ input: dry, output: sum, stop });
+      chain.push({ input: dry, output: sum, disconnect: stop });
     }
     // reverb
     if (ch.room > 0) {
@@ -755,15 +759,18 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       dry.connect(dryReverb).connect(sum);
       dry.connect(reverbNode).connect(wetReverb).connect(sum);
       const stop = () => cleanupNodes([dryReverb, reverbNode, dry, wetReverb]);
-      chain.push({ input: dry, output: sum, stop });
+      chain.push({ input: dry, output: sum, disconnect: stop });
     }
-    if (prevExists && sourceExists) {
-      // mix with the previous output
-      const mixer = new GainNode(ac, { gain: 1, channelCount: 2, channelCountMode: 'explicit' });
-      prev.connect(mixer);
-      chain.push(mixer);
-    } else if (prevExists) {
-      prev.connect(chain[0]);
+    if (prevExists) {
+      const prevOut = prev.output ?? prev;
+      if (sourceExists) {
+        // mix with the previous output
+        const mixer = new GainNode(ac, { gain: 1, channelCount: 2, channelCountMode: 'explicit' });
+        prevOut.connect(mixer);
+        chain.push(mixer);
+      } else {
+        prevOut.connect(chain[0]);
+      }
     }
     // connect chain elements together
     chain.slice(1).reduce((last, current) => {
@@ -775,7 +782,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     audioNodes.push(...chain);
     prev = chain[chain.length - 1];
   }
-
+  const outerAudioNodes = [];
   const outerChain = [prev];
 
   // last gain
@@ -786,7 +793,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   if (delay > 0 && delaytime > 0 && delayfeedback > 0) {
     orbitBus.getDelay(delaytime, delayfeedback, t);
     const send = orbitBus.sendDelay(post, delay);
-    audioNodes.push(send);
+    outerAudioNodes.push(send);
   }
   // reverb
   if (room > 0) {
@@ -803,7 +810,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     }
     orbitBus.getReverb(roomsize, roomfade, roomlp, roomdim, roomIR, irspeed, irbegin);
     const send = orbitBus.sendReverb(post, room);
-    audioNodes.push(send);
+    outerAudioNodes.push(send);
   }
 
   if (djf != null) {
@@ -814,7 +821,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   if (analyze) {
     const analyserNode = getAnalyserById(analyze, 2 ** (fft + 5));
     const analyserSend = effectSend(post, analyserNode, 1);
-    audioNodes.push(analyserSend);
+    outerAudioNodes.push(analyserSend);
   }
   if (dry != null) {
     dry = applyGainCurve(dry);
@@ -831,7 +838,15 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     lastC.connect(currentC);
     return current.output ?? current;
   }, outerChain[0]);
-  audioNodes.push(...outerChain);
+  outerAudioNodes.push(...outerChain);
+  webAudioTimeout(
+    ac,
+    () => {
+      outerAudioNodes.forEach((n) => n?.disconnect?.());
+    },
+    0,
+    endWithRelease,
+  );
 };
 
 export const superdoughTrigger = (t, hap, ct, cps) => {
