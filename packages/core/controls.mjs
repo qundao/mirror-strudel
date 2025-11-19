@@ -2583,5 +2583,3 @@ export const scrub = register(
   },
   false,
 );
-
-export const { FXrelease, FXrel, FXr, fxr } = registerControl('FXrelease', 'FXrel', 'FXr', 'fxr');
