@@ -1,4 +1,4 @@
-import { getCommonSampleInfo } from './util.mjs';
+import { getBaseURL, getCommonSampleInfo } from './util.mjs';
 import { registerSound, registerWaveTable } from './index.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import { getADSRValues, getParamADSR, getPitchEnvelope, getVibratoOscillator } from './helpers.mjs';
@@ -211,7 +211,7 @@ export async function fetchSampleMap(url) {
     // not a browser
     return;
   }
-  const base = url.split('/').slice(0, -1).join('/');
+  const base = getBaseURL(url);
   if (typeof fetch === 'undefined') {
     // skip fetch when in node / testing
     return;

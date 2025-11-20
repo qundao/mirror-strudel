@@ -1,5 +1,5 @@
 import { getAudioContext, registerSound } from './index.mjs';
-import { getCommonSampleInfo } from './util.mjs';
+import { getBaseURL, getCommonSampleInfo } from './util.mjs';
 import {
   applyFM,
   applyParameterModulators,
@@ -134,7 +134,7 @@ function githubPath(base, subpath = '') {
   return `https://raw.githubusercontent.com/${path}/${subpath}`;
 }
 
-const _processTables = (json, baseUrl, frameLen, options = {}) => {
+const _processTables = (json, baseUrl, frameLen) => {
   baseUrl = json._base || baseUrl;
   return Object.entries(json).forEach(([key, tables]) => {
     if (key === '_base') return false;
@@ -190,6 +190,7 @@ export const tables = async (url, frameLen, json, options = {}) => {
   if (url.startsWith('local:')) {
     url = `http://localhost:5432`;
   }
+  const base = getBaseURL(url);
   if (typeof fetch !== 'function') {
     // not a browser
     return;
@@ -200,7 +201,7 @@ export const tables = async (url, frameLen, json, options = {}) => {
   }
   return fetch(url)
     .then((res) => res.json())
-    .then((json) => _processTables(json, url, frameLen, options))
+    .then((json) => _processTables(json, base, frameLen, options))
     .catch((error) => {
       console.error(error);
       throw new Error(`error loading "${url}"`);

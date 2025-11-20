@@ -105,3 +105,13 @@ export function getCommonSampleInfo(hapValue, bank) {
   const label = `${s}:${index}`;
   return { transpose, url, index, midi, label };
 }
+
+export const getBaseURL = (url) => {
+  try {
+    // For real URLs
+    return new URL('.', new URL(url)).href.replace(/\/$/, ''); // removes trailing slash
+  } catch {
+    // For pseudo URLS
+    return url.split('/').slice(0, -1).join('/');
+  }
+};

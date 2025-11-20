@@ -55,7 +55,6 @@ async function getBanks(directory, flat = false) {
     banks[bank].push(subDir);
     return subDir;
   });
-  banks._base = `http://localhost:${PORT}`;
   return { banks, files };
 }
 
