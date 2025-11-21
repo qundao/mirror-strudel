@@ -20,5 +20,8 @@
     "@strudel/tonal": "workspace:*",
     "@strudel/transpiler": "workspace:*",
     "@strudel/webaudio": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

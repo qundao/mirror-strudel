@@ -1,6 +1,6 @@
 {
   "name": "@strudel/transpiler",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Transpiler for strudel user code. Converts syntactically correct but semantically meaningless JS into evaluatable strudel code.",
   "main": "index.mjs",
   "type": "module",
@@ -39,5 +39,8 @@
   "devDependencies": {
     "vite": "^6.0.11",
     "vitest": "^3.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

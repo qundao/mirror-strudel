@@ -1,6 +1,6 @@
 {
   "name": "@strudel/midi",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Midi API for strudel",
   "main": "index.mjs",
   "type": "module",
@@ -35,5 +35,8 @@
   },
   "devDependencies": {
     "vite": "^6.0.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

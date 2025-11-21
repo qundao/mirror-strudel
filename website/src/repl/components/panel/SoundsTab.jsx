@@ -62,11 +62,9 @@ export function SoundsTab() {
 
   // stop current sound on mouseup
   useEvent('mouseup', () => {
-    const t = trigRef.current;
+    const ref = trigRef.current;
     trigRef.current = undefined;
-    t?.then((ref) => {
-      ref?.stop(getAudioContext().currentTime + 0.01);
-    });
+    ref?.stop?.(getAudioContext().currentTime + 0.01);
   });
   return (
     <div id="sounds-tab" className="px-4 flex gap-2 flex-col w-full h-full text-foreground">
@@ -124,12 +122,19 @@ export function SoundsTab() {
                   duration: 0.5,
                 };
                 soundPreviewIdx++;
-                const time = ctx.currentTime + 0.05;
                 const onended = () => trigRef.current?.node?.disconnect();
-                trigRef.current = Promise.resolve(onTrigger(time, params, onended));
-                trigRef.current.then((ref) => {
-                  connectToDestination(ref?.node);
-                });
+                try {
+                  // Pre-load the sample by calling onTrigger with a future time
+                  // This triggers the loading but schedules playback for later
+                  const time = ctx.currentTime + 0.05;
+                  const ref = await onTrigger(time, params, onended);
+                  trigRef.current = ref;
+                  if (ref?.node) {
+                    connectToDestination(ref.node);
+                  }
+                } catch (err) {
+                  console.warn('Failed to trigger sound:', err);
+                }
               }}
             >
               {' '}

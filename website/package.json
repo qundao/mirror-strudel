@@ -75,5 +75,8 @@
     "sharp": "^0.33.5",
     "workbox-window": "^7.3.0",
     "vite-plugin-bundle-audioworklet": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

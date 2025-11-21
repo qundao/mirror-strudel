@@ -129,9 +129,7 @@ function githubPath(base, subpath = '') {
   let repo = components.length >= 2 ? components[1] : 'samples';
   let branch = components.length >= 3 ? components[2] : 'main';
   let other = components.slice(3);
-  if (subpath) {
-    other.push(subpath);
-  }
+  other.push(subpath ? subpath : '');
   other = other.join('/');
 
   return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${other}`;

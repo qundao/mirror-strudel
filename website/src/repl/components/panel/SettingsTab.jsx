@@ -112,6 +112,7 @@ export function SettingsTab({ started }) {
     multiChannelOrbits,
     isTabIndentationEnabled,
     isMultiCursorEnabled,
+    patternAutoStart,
   } = useSettings();
   const shouldAlwaysSync = isUdels();
   const canChangeAudioDevice = AudioContext.prototype.setSinkId != null;
@@ -303,6 +304,11 @@ export function SettingsTab({ started }) {
           label="Disable CSS Animations"
           onChange={(cbEvent) => settingsMap.setKey('isCSSAnimationDisabled', cbEvent.target.checked)}
           value={isCSSAnimationDisabled}
+        />
+        <Checkbox
+          label="Auto-start pattern on pattern change"
+          onChange={(cbEvent) => settingsMap.setKey('patternAutoStart', cbEvent.target.checked)}
+          value={patternAutoStart}
         />
       </FormItem>
       <FormItem label="Zen Mode">Try clicking the logo in the top left!</FormItem>

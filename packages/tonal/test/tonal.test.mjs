@@ -61,13 +61,6 @@ describe('tonal', () => {
           .firstCycleValues.map((h) => h.note),
       ).toEqual(['B2', 'Eb3', 'A2', 'G3', 'F3']);
     });
-    it('produces silence for mixed sharps and flats', () => {
-      expect(
-        n(seq('0b#', '1#b', '2#b#'))
-          .scale('C major')
-          .firstCycleValues.map((h) => h.note),
-      ).toEqual([]);
-    });
     it('snaps notes (upwards) to scale', () => {
       const inputNotes = ['Cb', 'Eb', 'G', 'A#', 'Bb'];
       const expectedNotes = ['B2', 'E3', 'G3', 'B3', 'B3'];

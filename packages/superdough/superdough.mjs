@@ -7,7 +7,7 @@ This program is free software: you can redistribute it and/or modify it under th
 import './feedbackdelay.mjs';
 import './reverb.mjs';
 import './vowel.mjs';
-import { nanFallback, _mod, cycleToSeconds } from './util.mjs';
+import { nanFallback, _mod, cycleToSeconds, pickAndRename } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
 import { createFilter, gainNode, getCompressor, getDistortion, getLfo, getWorklet, effectSend } from './helpers.mjs';
 import { map } from 'nanostores';
@@ -146,11 +146,6 @@ let defaultDefaultValues = {
   gain: 0.8,
   postgain: 1,
   density: '.03',
-  ftype: '12db',
-  fanchor: 0,
-  resonance: 1,
-  hresonance: 1,
-  bandq: 1,
   channels: [1, 2],
   phaserdepth: 0.75,
   shapevol: 1,
@@ -415,32 +410,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     djf,
     // filters
     fanchor = getDefaultValue('fanchor'),
-    drive = 0.69,
     release = 0,
-    // low pass
-    cutoff,
-    lpenv,
-    lpattack,
-    lpdecay,
-    lpsustain,
-    lprelease,
-    resonance = getDefaultValue('resonance'),
-    // high pass
-    hpenv,
-    hcutoff,
-    hpattack,
-    hpdecay,
-    hpsustain,
-    hprelease,
-    hresonance = getDefaultValue('hresonance'),
-    // band pass
-    bpenv,
-    bandf,
-    bpattack,
-    bpdecay,
-    bpsustain,
-    bprelease,
-    bandq = getDefaultValue('bandq'),
 
     //phaser
     phaserrate: phaser,
@@ -511,7 +481,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   // oldest audio nodes will be destroyed if maximum polyphony is exceeded
   for (let i = 0; i <= activeSoundSources.size - maxPolyphony; i++) {
     const ch = activeSoundSources.entries().next();
-    const source = ch.value[1];
+    const source = ch.value[1].deref();
     const chainID = ch.value[0];
     const endTime = t + 0.25;
     source?.node?.gain?.linearRampToValueAtTime(0, endTime);
@@ -543,7 +513,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
 
     if (soundHandle) {
       sourceNode = soundHandle.node;
-      activeSoundSources.set(chainID, soundHandle);
+      activeSoundSources.set(chainID, new WeakRef(soundHandle)); // allow GC
     }
   } else {
     throw new Error(`sound ${s} not found! Is it loaded?`);
@@ -565,57 +535,87 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   // gain stage
   chain.push(gainNode(gain));
 
-  //filter
+  // filter
   const ftype = getFilterType(value.ftype);
-  if (cutoff !== undefined) {
-    let lp = () =>
-      createFilter(
-        ac,
-        'lowpass',
-        cutoff,
-        resonance,
-        lpattack,
-        lpdecay,
-        lpsustain,
-        lprelease,
-        lpenv,
-        t,
-        end,
-        fanchor,
-        ftype,
-        drive,
-      );
+
+  if (value.cutoff !== undefined) {
+    const lpMap = {
+      frequency: 'cutoff',
+      q: 'resonance',
+      attack: 'lpattack',
+      decay: 'lpdecay',
+      sustain: 'lpsustain',
+      release: 'lprelease',
+      env: 'lpenv',
+      anchor: 'fanchor',
+      model: 'ftype',
+      drive: 'drive',
+      rate: 'lprate',
+      sync: 'lpsync',
+      depth: 'lpdepth',
+      shape: 'lpshape',
+      dcoffset: 'lpdc',
+      skew: 'lpskew',
+    };
+    const lpParams = pickAndRename(value, lpMap);
+    lpParams.type = 'lowpass';
+    let lp = () => createFilter(ac, t, end, lpParams, cps);
     chain.push(lp());
     if (ftype === '24db') {
       chain.push(lp());
     }
   }
 
-  if (hcutoff !== undefined) {
-    let hp = () =>
-      createFilter(
-        ac,
-        'highpass',
-        hcutoff,
-        hresonance,
-        hpattack,
-        hpdecay,
-        hpsustain,
-        hprelease,
-        hpenv,
-        t,
-        end,
-        fanchor,
-      );
+  if (value.hcutoff !== undefined) {
+    const hpMap = {
+      frequency: 'hcutoff',
+      q: 'hresonance',
+      attack: 'hpattack',
+      decay: 'hpdecay',
+      sustain: 'hpsustain',
+      release: 'hprelease',
+      env: 'hpenv',
+      anchor: 'fanchor',
+      model: 'ftype',
+      drive: 'drive',
+      rate: 'hprate',
+      sync: 'hpsync',
+      depth: 'hpdepth',
+      shape: 'hpshape',
+      dcoffset: 'hpdc',
+      skew: 'hpskew',
+    };
+    const hpParams = pickAndRename(value, hpMap);
+    hpParams.type = 'highpass';
+    let hp = () => createFilter(ac, t, end, hpParams, cps);
     chain.push(hp());
     if (ftype === '24db') {
       chain.push(hp());
     }
   }
 
-  if (bandf !== undefined) {
-    let bp = () =>
-      createFilter(ac, 'bandpass', bandf, bandq, bpattack, bpdecay, bpsustain, bprelease, bpenv, t, end, fanchor);
+  if (value.bandf !== undefined) {
+    const bpMap = {
+      frequency: 'bandf',
+      q: 'bandq',
+      attack: 'bpattack',
+      decay: 'bpdecay',
+      sustain: 'bpsustain',
+      release: 'bprelease',
+      env: 'bpenv',
+      anchor: 'fanchor',
+      model: 'ftype',
+      drive: 'drive',
+      rate: 'bprate',
+      sync: 'bpsync',
+      depth: 'bpdepth',
+      shape: 'bpshape',
+      dcoffset: 'bpdc',
+      skew: 'bpskew',
+    };
+    const bpParams = pickAndRename(value, bpMap);
+    bpParams.type = 'bandpass';
+    let bp = () => createFilter(ac, t, end, bpParams, cps);
     chain.push(bp());
     if (ftype === '24db') {
       chain.push(bp());
@@ -630,6 +630,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   // effects
   coarse !== undefined && chain.push(getWorklet(ac, 'coarse-processor', { coarse }));
   crush !== undefined && chain.push(getWorklet(ac, 'crush-processor', { crush }));
+  shape !== undefined && chain.push(getWorklet(ac, 'shape-processor', { shape, postgain: shapevol }));
   distort !== undefined && chain.push(getDistortion(distort, distortvol, distorttype));
 
   if (tremolosync != null) {
@@ -691,7 +692,8 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   // delay
   if (delay > 0 && delaytime > 0 && delayfeedback > 0) {
     orbitBus.getDelay(delaytime, delayfeedback, t);
-    orbitBus.sendDelay(post, delay);
+    const send = orbitBus.sendDelay(post, delay);
+    audioNodes.push(send);
   }
   // reverb
   if (room > 0) {
@@ -707,7 +709,8 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       roomIR = await loadBuffer(url, ac, ir, 0);
     }
     orbitBus.getReverb(roomsize, roomfade, roomlp, roomdim, roomIR, irspeed, irbegin);
-    orbitBus.sendReverb(post, room);
+    const send = orbitBus.sendReverb(post, room);
+    audioNodes.push(send);
   }
 
   if (djf != null) {

@@ -92,11 +92,7 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
 
 async function blobToDataUrl(blob) {
   return new Promise((resolve) => {
-    var reader = new FileReader();
-    reader.onload = function (event) {
-      resolve(event.target.result);
-    };
-    reader.readAsDataURL(blob);
+    resolve(URL.createObjectURL(blob));
   });
 }
 

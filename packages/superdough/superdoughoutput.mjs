@@ -78,11 +78,11 @@ export class Orbit {
     return this.reverbNode;
   }
   sendReverb(node, amount) {
-    effectSend(node, this.reverbNode, amount);
+    return effectSend(node, this.reverbNode, amount);
   }
 
   sendDelay(node, amount) {
-    effectSend(node, this.delayNode, amount);
+    return effectSend(node, this.delayNode, amount);
   }
 
   duck(t, onsettime = 0, attacktime = 0.1, depth = 1) {

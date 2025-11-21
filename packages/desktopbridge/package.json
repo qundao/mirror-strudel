@@ -25,5 +25,8 @@
     "@strudel/core": "workspace:*",
     "@tauri-apps/api": "^2.2.0"
   },
-  "homepage": "https://codeberg.org/uzu/strudel#readme"
+  "homepage": "https://codeberg.org/uzu/strudel#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
