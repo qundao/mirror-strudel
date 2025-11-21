@@ -3,14 +3,17 @@ import { getCommonSampleInfo } from './util.mjs';
 import {
   applyFM,
   applyParameterModulators,
-  destroyAudioWorkletNode,
+  claimVoice,
   getADSRValues,
   getFrequencyFromValue,
   getParamADSR,
   getPitchEnvelope,
   getVibratoOscillator,
   getWorklet,
+  setParams,
+  releaseVoice,
   webAudioTimeout,
+  destroyAudioWorkletNode,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
 
@@ -218,32 +221,35 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   const frequency = getFrequencyFromValue(value);
   const { url, label } = getCommonSampleInfo(value, tables);
   const payload = await getPayload(url, label, frameLen);
+  const voiceKey = `wavetable:${payload.key}`;
   let holdEnd = t + duration;
   if (clip !== undefined) {
     holdEnd = Math.min(t + clip * duration, holdEnd);
   }
   const endWithRelease = holdEnd + release;
   const envEnd = endWithRelease + 0.01;
-  const source = getWorklet(
-    ac,
-    'wavetable-oscillator-processor',
-    {
-      begin: t,
-      end: envEnd,
-      frequency,
-      freqspread: value.detune,
-      position: value.wt,
-      warp: value.warp,
-      warpMode: warpmode,
-      voices: Math.max(value.unison ?? 1, 1),
-      panspread: value.spread,
-      phaserand: (value.wtphaserand ?? value.unison > 1) ? 1 : 0,
-    },
-    { outputChannelCount: [2] },
-  );
+  let source = claimVoice(voiceKey);
+  const params = {
+    begin: t,
+    end: envEnd,
+    frequency,
+    freqspread: value.detune,
+    position: value.wt,
+    warp: value.warp,
+    warpMode: warpmode,
+    voices: Math.max(value.unison ?? 1, 1),
+    panspread: value.spread,
+    phaserand: (value.wtphaserand ?? value.unison > 1) ? 1 : 0,
+  };
+  if (source == null) {
+    source = getWorklet(ac, 'wavetable-oscillator-processor', params, { outputChannelCount: [2] });
+  } else {
+    setParams(source, params);
+  }
   source.port.postMessage({ type: 'table', payload });
   if (ac.currentTime > t) {
     logger(`[wavetable] still loading sound "${s}:${n}"`, 'highlight');
+    releaseVoice(voiceKey, source);
     return;
   }
   const posADSRParams = [value.wtattack, value.wtdecay, value.wtsustain, value.wtrelease];
@@ -318,19 +324,18 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   const timeoutNode = webAudioTimeout(
     ac,
     () => {
-      destroyAudioWorkletNode(source);
       vibratoOscillator?.stop();
       fm?.stop();
       node.disconnect();
       wtPosModulators?.disconnect();
       wtWarpModulators?.disconnect();
+      destroyAudioWorkletNode(source);
+      releaseVoice(voiceKey, source);
       onended();
     },
     t,
     envEnd,
   );
-  handle.stop = (time) => {
-    timeoutNode.stop(time);
-  };
+  handle.stop = timeoutNode.stop;
   return handle;
 }

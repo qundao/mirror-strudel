@@ -3,6 +3,7 @@ import { registerSound, soundMap } from './superdough.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import {
   applyFM,
+  claimVoice,
   destroyAudioWorkletNode,
   gainNode,
   getADSRValues,
@@ -12,6 +13,8 @@ import {
   getPitchEnvelope,
   getVibratoOscillator,
   getWorklet,
+  setParams,
+  releaseVoice,
   noises,
   webAudioTimeout,
 } from './helpers.mjs';
@@ -69,9 +72,7 @@ export function registerSynthSounds() {
         stop(envEnd);
         return {
           node,
-          stop: (endTime) => {
-            stop(endTime);
-          },
+          stop,
         };
       },
       { type: 'synth', prebake: true },
@@ -138,9 +139,7 @@ export function registerSynthSounds() {
 
       return {
         node,
-        stop: (endTime) => {
-          o.stop(endTime);
-        },
+        stop: o.stop,
       };
     },
     { type: 'synth', prebake: true },
@@ -164,22 +163,22 @@ export function registerSynthSounds() {
       const end = holdend + release + 0.01;
       const voices = clamp(unison, 1, 100);
       let panspread = voices > 1 ? clamp(spread, 0, 1) : 0;
-      let o = getWorklet(
-        ac,
-        'supersaw-oscillator',
-        {
-          frequency,
-          begin,
-          end,
-          freqspread: detune,
-          voices,
-          panspread,
-        },
-        {
+      let o = claimVoice('supersaw');
+      const params = {
+        frequency,
+        begin,
+        end,
+        freqspread: detune,
+        voices,
+        panspread,
+      };
+      if (o == null) {
+        o = getWorklet(ac, 'supersaw-oscillator', params, {
           outputChannelCount: [2],
-        },
-      );
-
+        });
+      } else {
+        setParams(o, params);
+      }
       const gainAdjustment = 1 / Math.sqrt(voices);
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);
       const vibratoOscillator = getVibratoOscillator(o.parameters.get('detune'), value, begin);
@@ -189,10 +188,11 @@ export function registerSynthSounds() {
 
       getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
 
-      let timeoutNode = webAudioTimeout(
+      const timeoutNode = webAudioTimeout(
         ac,
         () => {
           destroyAudioWorkletNode(o);
+          releaseVoice('supersaw', o);
           envGain.disconnect();
           onended();
           fm?.stop();
@@ -204,9 +204,7 @@ export function registerSynthSounds() {
 
       return {
         node: envGain,
-        stop: (time) => {
-          timeoutNode.stop(time);
-        },
+        stop: timeoutNode.stop,
       };
     },
     { prebake: true, type: 'synth' },
@@ -267,7 +265,7 @@ export function registerSynthSounds() {
 
       getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 1, begin, holdend, 'linear');
 
-      let timeoutNode = webAudioTimeout(
+      const timeoutNode = webAudioTimeout(
         ac,
         () => {
           destroyAudioWorkletNode(o);
@@ -280,9 +278,7 @@ export function registerSynthSounds() {
 
       return {
         node: envGain,
-        stop: (time) => {
-          timeoutNode.stop(time);
-        },
+        stop: timeoutNode.stop,
       };
     },
     { prebake: true, type: 'synth' },
@@ -341,7 +337,7 @@ export function registerSynthSounds() {
         lfo = getLfo(ac, begin, end, { frequency: pwrate, depth: pwsweep });
         lfo.connect(o.parameters.get('pulsewidth'));
       }
-      let timeoutNode = webAudioTimeout(
+      const timeoutNode = webAudioTimeout(
         ac,
         () => {
           destroyAudioWorkletNode(o);
@@ -357,9 +353,7 @@ export function registerSynthSounds() {
 
       return {
         node: envGain,
-        stop: (time) => {
-          timeoutNode.stop(time);
-        },
+        stop: timeoutNode.stop,
       };
     },
     { prebake: true, type: 'synth' },
@@ -402,9 +396,7 @@ export function registerSynthSounds() {
         stop(envEnd);
         return {
           node,
-          stop: (endTime) => {
-            stop(endTime);
-          },
+          stop,
         };
       },
       { type: 'synth', prebake: true },

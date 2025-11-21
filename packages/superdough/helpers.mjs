@@ -36,6 +36,27 @@ export function getWorklet(ac, processor, params, config) {
   return node;
 }
 
+// Pool of inactive (weakly referenced) voices to be reused if possible
+const voicePools = {};
+
+// Cycles through the pool attempting to find an inactive voice that hasn't been GC'd
+export const claimVoice = (key) => {
+  voicePools[key] ??= [];
+  const pool = voicePools[key];
+  let node;
+  while (pool.length && !node) {
+    const ref = pool.pop();
+    node = ref?.deref?.();
+  }
+  return node;
+};
+
+// Releases a voice from use and adds to the inactive pool
+export const releaseVoice = (key, node) => {
+  voicePools[key] ??= [];
+  voicePools[key].push(new WeakRef(node));
+};
+
 export const getParamADSR = (
   param,
   attack,
@@ -536,4 +557,26 @@ export const destroyAudioWorkletNode = (node) => {
   }
   node.disconnect();
   node.parameters.get('end')?.setValueAtTime(0, 0);
+};
+
+export const setParams = (node, params, t) => {
+  const ac = getAudioContext();
+  t ??= ac.currentTime;
+  const workletParams = node && node.parameters && typeof node.parameters.get === 'function';
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null) continue;
+    let param;
+    if (workletParams) {
+      param = node.parameters.get(key);
+    }
+    if (param == null && node[key] instanceof AudioParam) {
+      param = node[key];
+    }
+    if (param instanceof AudioParam) {
+      param.cancelScheduledValues(t);
+      param.setValueAtTime(value, t);
+    } else {
+      node[key] = value;
+    }
+  }
 };

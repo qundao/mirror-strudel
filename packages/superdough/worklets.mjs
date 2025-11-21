@@ -508,14 +508,15 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
     ];
   }
   process(_input, outputs, params) {
-    if (currentTime <= params.begin[0]) {
+    const output = outputs[0];
+    const begin = params.begin[0];
+    const end = params.end[0];
+
+    if (currentTime <= begin || currentTime >= end) {
+      output[0].fill(0);
+      output[1].fill(0);
       return true;
     }
-    if (currentTime >= params.end[0]) {
-      // this.port.postMessage({ type: 'onended' });
-      return false;
-    }
-    const output = outputs[0];
     const voices = params.voices[0]; // k-rate
     for (let i = 0; i < output[0].length; i++) {
       const detune = pv(params.detune, i);
@@ -1317,18 +1318,19 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     return level;
   }
 
+  _zeroOutputs(outL, outR) {
+    outL.fill(0);
+    outR.fill(0);
+  }
+
   process(_inputs, outputs, parameters) {
-    if (currentTime >= parameters.end[0]) {
-      return false;
-    }
-    if (currentTime <= parameters.begin[0]) {
-      return true;
-    }
     const outL = outputs[0][0];
     const outR = outputs[0][1] || outputs[0][0];
-    if (!this.tables) {
-      outL.fill(0);
-      if (outR !== outL) outR.set(outL);
+    const begin = parameters.begin[0];
+    const end = parameters.end[0];
+
+    if (!this.tables || currentTime <= begin || currentTime >= end) {
+      this._zeroOutputs();
       return true;
     }
     const voices = parameters.voices[0]; // k-rate

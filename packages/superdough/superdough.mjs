@@ -478,15 +478,16 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   const endWithRelease = end + release;
   const chainID = Math.round(Math.random() * 1000000);
 
-  // oldest audio nodes will be destroyed if maximum polyphony is exceeded
-  for (let i = 0; i <= activeSoundSources.size - maxPolyphony; i++) {
-    const ch = activeSoundSources.entries().next();
-    const source = ch.value[1].deref();
-    const chainID = ch.value[0];
+  // oldest audio nodes will be stopped if maximum polyphony is exceeded
+  while (activeSoundSources.size >= maxPolyphony) {
+    const { value: entry } = activeSoundSources.entries().next();
+    if (!entry) break;
+    const [oldChainID, ref] = entry;
+    const handle = ref?.deref();
     const endTime = t + 0.25;
-    source?.node?.gain?.linearRampToValueAtTime(0, endTime);
-    source?.stop?.(endTime);
-    activeSoundSources.delete(chainID);
+    handle?.node?.gain?.linearRampToValueAtTime?.(0, endTime);
+    handle?.stop?.(endTime);
+    activeSoundSources.delete(oldChainID);
   }
 
   let audioNodes = [];
