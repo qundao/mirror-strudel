@@ -249,6 +249,7 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   source.port.postMessage({ type: 'table', payload });
   if (ac.currentTime > t) {
     logger(`[wavetable] still loading sound "${s}:${n}"`, 'highlight');
+    destroyAudioWorkletNode(source);
     releaseVoice(voiceKey, source);
     return;
   }
@@ -316,17 +317,14 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   );
   const vibratoOscillator = getVibratoOscillator(source.parameters.get('detune'), value, t);
   const fm = applyFM(source.parameters.get('frequency'), value, t);
-  const envGain = ac.createGain();
-  const node = source.connect(envGain);
-  getParamADSR(node.gain, attack, decay, sustain, release, 0, 0.3, t, holdEnd, 'linear');
+  getParamADSR(source.parameters.get('postgain'), attack, decay, sustain, release, 0, 0.3, t, holdEnd, 'linear');
   getPitchEnvelope(source.parameters.get('detune'), value, t, holdEnd);
-  const handle = { node, source };
+  const handle = { node: source };
   const timeoutNode = webAudioTimeout(
     ac,
     () => {
       vibratoOscillator?.stop();
       fm?.stop();
-      node.disconnect();
       wtPosModulators?.disconnect();
       wtWarpModulators?.disconnect();
       destroyAudioWorkletNode(source);

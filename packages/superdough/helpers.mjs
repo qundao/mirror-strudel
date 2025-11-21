@@ -339,6 +339,17 @@ export function scheduleAtTime(callback, targetTime, audioContext = getAudioCont
   const currentTime = audioContext.currentTime;
   webAudioTimeout(audioContext, callback, currentTime, targetTime);
 }
+
+let silencer;
+function getSilencer() {
+  const ac = getAudioContext();
+  if (!silencer) {
+    silencer = gainNode(0);
+    silencer.connect(ac.destination);
+  }
+  return silencer;
+}
+
 // ConstantSource inherits AudioScheduledSourceNode, which has scheduling abilities
 // a bit of a hack, but it works very well :)
 export function webAudioTimeout(audioContext, onComplete, startTime, stopTime) {
@@ -346,18 +357,11 @@ export function webAudioTimeout(audioContext, onComplete, startTime, stopTime) {
 
   // Certain browsers requires audio nodes to be connected in order for their onended events
   // to fire, so we _mute it_ and then connect it to the destination
-  const zeroGain = gainNode(0);
-  zeroGain.connect(audioContext.destination);
+  const zeroGain = getSilencer();
   constantNode.connect(zeroGain);
 
   // Schedule the `onComplete` callback to occur at `stopTime`
   constantNode.onended = () => {
-    // Ensure garbage collection
-    try {
-      zeroGain.disconnect();
-    } catch {
-      // pass
-    }
     try {
       constantNode.disconnect();
     } catch {
