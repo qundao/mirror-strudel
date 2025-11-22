@@ -447,11 +447,16 @@ export function applyFM(param, value, begin) {
 
 // Saturation curves
 
+const fastTanh = (x) => {
+  const x2 = x * x;
+  const y = (x * (27 + x2)) / (27 + 9 * x2);
+  return y < -1 ? -1 : (y > 1 ? 1 : y);
+}
 const __squash = (x) => x / (1 + x); // [0, inf) to [0, 1)
 const _mod = (n, m) => ((n % m) + m) % m;
 
 const _scurve = (x, k) => ((1 + k) * x) / (1 + k * Math.abs(x));
-const _soft = (x, k) => Math.tanh(x * (1 + k));
+const _soft = (x, k) => fastTanh(x * (1 + k));
 const _hard = (x, k) => clamp((1 + k) * x, -1, 1);
 
 const _fold = (x, k) => {

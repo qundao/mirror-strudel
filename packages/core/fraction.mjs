@@ -91,6 +91,9 @@ Fraction.prototype.or = function (other) {
 };
 
 const fraction = (n) => {
+  if (n instanceof Fraction) {
+    return n;
+  }
   if (typeof n === 'number') {
     /*
     https://github.com/infusion/Fraction.js/#doubles
