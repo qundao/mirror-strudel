@@ -12,6 +12,7 @@ import {
   getWorklet,
   setParams,
   releaseVoice,
+  removeVoice,
   webAudioTimeout,
   destroyAudioWorkletNode,
 } from './helpers.mjs';
@@ -237,20 +238,28 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
     position: value.wt,
     warp: value.warp,
     warpMode: warpmode,
-    voices: Math.max(value.unison ?? 1, 1),
     panspread: value.spread,
-    phaserand: (value.wtphaserand ?? value.unison > 1) ? 1 : 0,
+  };
+  const processorOptions = {
+    phaseRand: value.wtphaserand ?? (value.unison > 1 ? 1 : 0),
+    voices: Math.max(value.unison ?? 1, 1),
   };
   if (source == null) {
-    source = getWorklet(ac, 'wavetable-oscillator-processor', params, { outputChannelCount: [2] });
+    source = getWorklet(ac, 'wavetable-oscillator-processor', params, { outputChannelCount: [2], processorOptions });
   } else {
     setParams(source, params);
+    source.port.postMessage({ type: 'reset', payload: { processorOptions } });
   }
   source.port.postMessage({ type: 'table', payload });
   if (ac.currentTime > t) {
     logger(`[wavetable] still loading sound "${s}:${n}"`, 'highlight');
     destroyAudioWorkletNode(source);
     releaseVoice(voiceKey, source);
+    source.port.onmessage = (e) => {
+      if (e.data.type === 'finished') {
+        removeVoice(voiceKey, id);
+      }
+    };
     return;
   }
   const posADSRParams = [value.wtattack, value.wtdecay, value.wtsustain, value.wtrelease];
@@ -328,7 +337,13 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
       wtPosModulators?.disconnect();
       wtWarpModulators?.disconnect();
       destroyAudioWorkletNode(source);
-      releaseVoice(voiceKey, source);
+      const id = Math.floor(Math.random() * 10000);
+      releaseVoice(voiceKey, id, source);
+      source.port.onmessage = (e) => {
+        if (e.data.type === 'finished') {
+          removeVoice(voiceKey, id);
+        }
+      };
       onended();
     },
     t,

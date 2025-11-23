@@ -470,13 +470,17 @@ registerProcessor('distort-processor', DistortProcessor);
 
 // SUPERSAW
 class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
     this.phases = new Float32Array(MAX_VOICES);
-    this.reset(options);
+    this.reset(options.processorOptions);
   }
   reset(options) {
-    this.phases.map(() => Math.random());
+    const phases = this.phases;
+    for (let i = 0; i < phases.length; i++) {
+      phases[i] = Math.random();
+    }
+    this.voices = options.voices;
   }
   static get parameterDescriptors() {
     return [
@@ -514,13 +518,6 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
         min: 0,
       },
       {
-        name: 'voices',
-        defaultValue: 5,
-        min: 1,
-        max: MAX_VOICES,
-        automationRate: 'k-rate',
-      },
-      {
         name: 'postgain',
         defaultValue: 1,
       },
@@ -529,20 +526,20 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
   process(_input, outputs, params) {
     const started = currentTime >= params.begin[0];
     const end = params.end[0];
-    const ended = currentTime >= end + 1;
-    const inGracePeriod = (currentTime >= end) && !ended;
-    if (started|| inGracePeriod) {
+    const ended = currentTime >= end + 5;
+    const inGracePeriod = currentTime >= end && !ended;
+    if (!started || inGracePeriod) {
       return true;
     } else if (ended) {
+      this.port.postMessage({ type: 'finished' });
       return false;
     }
     const output = outputs[0];
-    const voices = params.voices[0]; // k-rate
     // fast k-rate paths
     let freq, detune, freqspread, detuner;
     if (params.freqspread.length === 1) {
       freqspread = params.freqspread[0];
-      detuner = getDetuner(voices, freqspread);
+      detuner = getDetuner(this.voices, freqspread);
     }
     if (params.frequency.length === 1 && params.detune.length === 1) {
       freq = params.frequency[0];
@@ -551,7 +548,7 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
     }
     let panspread, gainL, gainR;
     if (params.panspread.length === 1) {
-      panspread = voices > 1 ? clamp(pv(params.panspread, i), 0, 1) : 0;
+      panspread = this.voices > 1 ? clamp(params.panspread[0], 0, 1) : 0;
       gainL = Math.sqrt(0.5 - 0.5 * panspread);
       gainR = Math.sqrt(0.5 + 0.5 * panspread);
     }
@@ -564,8 +561,8 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       detune ??= pv(params.detune, i);
       freqspread ??= pv(params.freqspread, i);
       freq ??= applySemitoneDetuneToFrequency(pv(params.frequency, i), detune / 100);
-      detuner ??= getDetuner(voices, freqspread);
-      for (let n = 0; n < voices; n++) {
+      detuner ??= getDetuner(this.voices, freqspread);
+      for (let n = 0; n < this.voices; n++) {
         // Individual voice detuning
         const freqVoice = applyFastDetune(freq, detuner(n));
         // We must wrap this here because it is passed into sawblep below which
@@ -574,12 +571,13 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
         const v = waveshapes.sawblep(this.phases[n], dt);
         output[0][i] += v * gainL;
         output[1][i] += v * gainR;
-        let pn = this.phase[n] + dt;
+        let pn = this.phases[n] + dt;
         if (pn >= 1.0) pn -= 1.0;
         this.phases[n] = pn;
         // invert right and left gain
+        const tmp = gainL;
         gainL = gainR;
-        gainR = gainL;
+        gainR = tmp;
       }
     }
     return true;
@@ -1160,7 +1158,6 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       { name: 'position', defaultValue: 0, min: 0, max: 1 },
       { name: 'warp', defaultValue: 0, min: 0, max: 1 },
       { name: 'warpMode', defaultValue: 0 },
-      { name: 'voices', defaultValue: 1, min: 1, automationRate: 'k-rate' },
       { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
       { name: 'postgain', defaultValue: 1, min: 0 },
     ];
@@ -1196,13 +1193,21 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
         }
         this.tables = tablesCache[key];
         this.numFrames = this.tables[0].length;
+      } else if (type === 'reset') {
+        this.reset(payload.processorOptions);
       }
     };
-    this.reset(options);
+    this.reset(options.processorOptions);
   }
 
   reset(options) {
-    this.phases.map(() => Math.random() * (options.processorOptions.phaseRand ?? 1));
+    const phaseRand = options.phaseRand ?? 1;
+    const phases = this.phases;
+    for (let i = 0; i < phases.length; i++) {
+      phases[i] = Math.random() * phaseRand;
+    }
+    this.voices = options.voices;
+    this.voicesDenom = 1 / Math.sqrt(this.voices);
   }
 
   _mirror(x) {
@@ -1359,22 +1364,20 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
   process(_inputs, outputs, params) {
     const started = currentTime >= params.begin[0];
     const end = params.end[0];
-    const ended = currentTime >= end + 1;
-    const inGracePeriod = (currentTime >= end) && !ended;
-    if (!this.tables || started || inGracePeriod) {
+    const ended = currentTime >= end + 5;
+    const inGracePeriod = currentTime >= end && !ended;
+    if (!this.tables || !started || inGracePeriod) {
       return true;
     } else if (ended) {
       return false;
     }
     const outL = outputs[0][0];
     const outR = outputs[0][1] || outputs[0][0];
-    const voices = parameters.voices[0]; // k-rate
-    const voicesDenom = 1 / Math.sqrt(voices);
     // fast k-rate paths
     let freq, detune, freqspread, detuner;
     if (params.freqspread.length === 1) {
       freqspread = params.freqspread[0];
-      detuner = getDetuner(voices, freqspread);
+      detuner = getDetuner(this.voices, freqspread);
     }
     if (params.frequency.length === 1 && params.detune.length === 1) {
       freq = params.frequency[0];
@@ -1383,7 +1386,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     }
     let panspread, gainL, gainR;
     if (params.panspread.length === 1) {
-      panspread = voices > 1 ? clamp(pv(params.panspread, i), 0, 1) : 0;
+      panspread = this.voices > 1 ? clamp(params.panspread[0], 0, 1) : 0;
       gainL = Math.sqrt(0.5 - 0.5 * panspread);
       gainR = Math.sqrt(0.5 + 0.5 * panspread);
     }
@@ -1395,34 +1398,35 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       const warpAmount = clamp(pv(params.warp, i), 0, 1);
       const warpMode = pv(params.warpMode, i);
       const postgain = pv(params.postgain, i);
-      const normalizer = postgain * voicesDenom;
-      panspread ??= voices > 1 ? clamp(pv(params.panspread, i), 0, 1) : 0;
+      const normalizer = postgain * this.voicesDenom;
+      panspread ??= this.voices > 1 ? clamp(pv(params.panspread, i), 0, 1) : 0;
       gainL ??= Math.sqrt(0.5 - 0.5 * panspread);
       gainR ??= Math.sqrt(0.5 + 0.5 * panspread);
       detune ??= pv(params.detune, i);
       freqspread ??= pv(params.freqspread, i);
       freq ??= applySemitoneDetuneToFrequency(pv(params.frequency, i), detune / 100); // overall detune
-      detuner ??= getDetuner(voices, freqspread);
-      for (let n = 0; n < voices; n++) {
-        const fVoice = applyFastDetune(f, detuner(n)); // voice detune
-        const dPhase = fVoice * INVSR;
+      detuner ??= getDetuner(this.voices, freqspread);
+      for (let n = 0; n < this.voices; n++) {
+        const freqVoice = applyFastDetune(freq, detuner(n)); // voice detune
+        const dPhase = freqVoice * INVSR;
         const level = this._chooseMip(dPhase);
         const table = this.tables[level];
 
         // warp phase then sample
-        const ph = this._warpPhase(this.phase[n], warpAmount, warpMode);
+        const ph = this._warpPhase(this.phases[n], warpAmount, warpMode);
         const s0 = this._sampleFrame(table[fIdx], ph);
         const s1 = this._sampleFrame(table[Math.min(this.numFrames - 1, fIdx + 1)], ph);
         let s = lerp(s0, s1, interpT);
-        if (warpMode === WarpMode.FLIP && this.phase[n] < warpAmount) {
+        if (warpMode === WarpMode.FLIP && this.phases[n] < warpAmount) {
           s = -s;
         }
         outL[i] += s * gainL * normalizer;
         outR[i] += s * gainR * normalizer;
-        this.phase[n] = frac(this.phase[n] + dPhase);
+        this.phases[n] = frac(this.phases[n] + dPhase);
         // invert right and left gain
-        gainL = gainR;
+        const tmp = gainL;
         gainR = gainL;
+        gainL = gainR;
       }
     }
     return true;

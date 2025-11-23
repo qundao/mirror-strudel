@@ -41,21 +41,25 @@ const voicePools = {};
 
 // Cycles through the pool attempting to find an inactive voice that hasn't been GC'd
 export const claimVoice = (key) => {
-  voicePools[key] ??= [];
+  voicePools[key] ??= {};
   const pool = voicePools[key];
   let node;
-  while (pool.length && !node) {
-    const ref = pool.pop();
+  for (const [id, ref] of Object.entries(pool)) {
     node = ref?.deref?.();
+    delete pool[id];
+    if (node !== null) break;
   }
-  node?.reset();
   return node;
 };
 
 // Releases a voice from use and adds to the inactive pool
-export const releaseVoice = (key, node) => {
-  voicePools[key] ??= [];
-  voicePools[key].push(new WeakRef(node));
+export const releaseVoice = (key, id, node) => {
+  voicePools[key] ??= {};
+  voicePools[key][id] = new WeakRef(node);
+};
+
+export const removeVoice = (key, id) => {
+  delete voicePools[key][id];
 };
 
 export const getParamADSR = (
@@ -451,8 +455,8 @@ export function applyFM(param, value, begin) {
 const fastTanh = (x) => {
   const x2 = x * x;
   const y = (x * (27 + x2)) / (27 + 9 * x2);
-  return y < -1 ? -1 : (y > 1 ? 1 : y);
-}
+  return y < -1 ? -1 : y > 1 ? 1 : y;
+};
 const __squash = (x) => x / (1 + x); // [0, inf) to [0, 1)
 const _mod = (n, m) => ((n % m) + m) % m;
 

@@ -237,6 +237,7 @@ export class StrudelMirror {
       cmEditor.style.backgroundColor = 'transparent';
     }
     const settings = codemirrorSettings.get();
+    this.isPatternHighlightingEnabled = parseBooleans(settings.isPatternHighlightingEnabled);
     this.setFontSize(settings.fontSize);
     this.setFontFamily(settings.fontFamily);
 
@@ -321,6 +322,9 @@ export class StrudelMirror {
     flash(this.editor, ms);
   }
   highlight(haps, time) {
+    if (!this.isPatternHighlightingEnabled) {
+      return;
+    }
     highlightMiniLocations(this.editor, time, haps);
   }
   setFontSize(size) {
@@ -339,6 +343,9 @@ export class StrudelMirror {
       return;
     }
     value = parseBooleans(value);
+    if (key === 'isPatternHighlightingEnabled') {
+      this.isPatternHighlightingEnabled = value;
+    }
     const newValue = extensions[key](value, this);
     this.editor.dispatch({
       effects: compartments[key].reconfigure(newValue),
