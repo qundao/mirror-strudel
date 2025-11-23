@@ -5,6 +5,18 @@
 import OLAProcessor from './ola-processor';
 import FFT from './fft.js';
 import { getDistortionAlgorithm } from './helpers.mjs';
+import {
+  applyFastDetune,
+  applySemitoneDetuneToFrequency,
+  clamp,
+  fastexpm1,
+  fceil,
+  ffloor,
+  ffrac,
+  frac,
+  fround,
+  lerp,
+} from './util.mjs';
 
 const blockSize = 128;
 const PI = Math.PI;
@@ -12,23 +24,11 @@ const TWO_PI = 2 * PI;
 const INVSR = 1 / sampleRate;
 const MAX_VOICES = 64;
 
-const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
-const mod = (n, m) => ((n % m) + m) % m;
-const lerp = (a, b, n) => n * (b - a) + a;
 const pv = (arr, n) => arr[n] ?? arr[0];
-const frac = (x) => x - Math.floor(x);
-
-// Fast integer ops for non-negative values
-const ffloor = (x) => x | 0;
-const fround = (x) => ffloor(x + 0.5);
-const fceil = (x) => ffloor(x + 1);
-const ffrac = (x) => x - ffloor(x);
-
 const fast_tanh = (x) => {
   const x2 = x * x;
   return (x * (27 + x2)) / (27 + 9 * x2);
 };
-const fastexpm1 = (x) => x * (1 + x + 0.5 * x * x); // Taylor approximation
 
 // Optimized per-voice detuner which precomputes constants
 const getDetuner = (unison, detune) => {
@@ -38,21 +38,6 @@ const getDetuner = (unison, detune) => {
   const scale = detune / (unison - 1);
   const center = detune * 0.5;
   return (voiceIdx) => voiceIdx * scale - center;
-};
-
-function fastPow2(x) {
-  // Taylor approximation of 2 ^ x
-  const a = x * 0.6931471805599453; // ln(2)
-  return 1 + a * (1 + a * (0.5 + a / 6));
-}
-
-const applySemitoneDetuneToFrequency = (frequency, detune) => {
-  return frequency * Math.pow(2, detune / 12);
-};
-
-const applyFastDetune = (frequency, detune) => {
-  if (detune < 4) return frequency * fastPow2(detune / 12);
-  return applySemitoneDetuneToFrequency(frequency, detune);
 };
 
 // Smooth waveshape near discontinuities to remove frequencies above Nyquist and prevent aliasing

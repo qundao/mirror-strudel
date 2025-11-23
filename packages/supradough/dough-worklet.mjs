@@ -1,6 +1,10 @@
 import { Dough } from './dough.mjs';
 
-const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+const clamp = (num, min, max) => {
+  if (num < min) return min;
+  if (num > max) return max;
+  return num;
+};
 
 class DoughProcessor extends AudioWorkletProcessor {
   constructor() {
