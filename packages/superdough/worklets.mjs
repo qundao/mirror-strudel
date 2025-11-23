@@ -43,7 +43,7 @@ const getDetuner = (unison, detune) => {
 function fastPow2(x) {
   // Taylor approximation of 2 ^ x
   const a = x * 0.6931471805599453; // ln(2)
-  return 1 + a * (1 + a * (0.5 + (a / 6)));
+  return 1 + a * (1 + a * (0.5 + a / 6));
 }
 
 const applySemitoneDetuneToFrequency = (frequency, detune) => {
@@ -1147,7 +1147,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       { name: 'freqspread', defaultValue: 0.18, min: 0 },
       { name: 'position', defaultValue: 0, min: 0, max: 1 },
       { name: 'warp', defaultValue: 0, min: 0, max: 1 },
-      { name: 'warpMode', defaultValue: 0 },
+      { name: 'warpMode', defaultValue: 0, automationRate: 'k-rate' },
       { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
     ];
   }
@@ -1351,13 +1351,13 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       gainL = Math.sqrt(0.5 - 0.5 * panspread);
       gainR = Math.sqrt(0.5 + 0.5 * panspread);
     }
+    const warpMode = params.warpMode[0];
     for (let i = 0; i < outL.length; i++) {
       const tablePos = clamp(pv(params.position, i), 0, 1);
       const idx = tablePos * (this.numFrames - 1);
       const fIdx = idx | 0;
       const interpT = idx - fIdx;
       const warpAmount = clamp(pv(params.warp, i), 0, 1);
-      const warpMode = pv(params.warpMode, i);
       panspread ??= this.voices > 1 ? clamp(pv(params.panspread, i), 0, 1) : 0;
       gainL ??= Math.sqrt(0.5 - 0.5 * panspread);
       gainR ??= Math.sqrt(0.5 + 0.5 * panspread);
