@@ -4,6 +4,7 @@ import {
   applyFM,
   applyParameterModulators,
   claimVoice,
+  gainNode,
   getADSRValues,
   getFrequencyFromValue,
   getParamADSR,
@@ -320,9 +321,10 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   );
   const vibratoOscillator = getVibratoOscillator(source.parameters.get('detune'), value, t);
   const fm = applyFM(source.parameters.get('frequency'), value, t);
-  getParamADSR(source.parameters.get('postgain'), attack, decay, sustain, release, 0, 0.3, t, holdEnd, 'linear');
+  const envGain = source.connect(gainNode(1));
+  getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 0.3, t, holdEnd, 'linear');
   getPitchEnvelope(source.parameters.get('detune'), value, t, holdEnd);
-  const handle = { node: source };
+  const handle = { node: envGain };
   const timeoutNode = webAudioTimeout(
     ac,
     () => {
@@ -330,6 +332,7 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
       fm?.stop();
       wtPosModulators?.disconnect();
       wtWarpModulators?.disconnect();
+      envGain.disconnect();
       destroyAudioWorkletNode(source);
       releaseVoice(voiceKey, source);
       onended();

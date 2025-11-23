@@ -43,7 +43,7 @@ const getDetuner = (unison, detune) => {
 function fastPow2(x) {
   // Taylor approximation of 2 ^ x
   const a = x * 0.6931471805599453; // ln(2)
-  return 1 + a * (1 + a * (0.8333333333333333 + a));
+  return 1 + a * (1 + a * (0.5 + (a / 6)));
 }
 
 const applySemitoneDetuneToFrequency = (frequency, detune) => {
@@ -517,10 +517,6 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
         defaultValue: 0,
         min: 0,
       },
-      {
-        name: 'postgain',
-        defaultValue: 1,
-      },
     ];
   }
   process(_input, outputs, params) {
@@ -548,10 +544,9 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       gainR = Math.sqrt(0.5 + 0.5 * panspread);
     }
     for (let i = 0; i < output[0].length; i++) {
-      const postgain = pv(params.postgain, i);
       const panspread = pv(params.panspread, i) * 0.5 + 0.5;
-      gainL = Math.sqrt(1 - panspread) * postgain;
-      gainR = Math.sqrt(panspread) * postgain;
+      gainL = Math.sqrt(1 - panspread);
+      gainR = Math.sqrt(panspread);
       // Main detuning (a-rate path)
       detune ??= pv(params.detune, i);
       freqspread ??= pv(params.freqspread, i);
@@ -1154,7 +1149,6 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       { name: 'warp', defaultValue: 0, min: 0, max: 1 },
       { name: 'warpMode', defaultValue: 0 },
       { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
-      { name: 'postgain', defaultValue: 1, min: 0 },
     ];
   }
 
@@ -1187,7 +1181,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       phases[i] = Math.random() * phaseRand;
     }
     this.voices = options.voices;
-    this.voicesDenom = 1 / Math.sqrt(this.voices);
+    this.normalizer = 1 / Math.sqrt(this.voices);
   }
 
   _mirror(x) {
@@ -1364,8 +1358,6 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       const interpT = idx - fIdx;
       const warpAmount = clamp(pv(params.warp, i), 0, 1);
       const warpMode = pv(params.warpMode, i);
-      const postgain = pv(params.postgain, i);
-      const normalizer = postgain * this.voicesDenom;
       panspread ??= this.voices > 1 ? clamp(pv(params.panspread, i), 0, 1) : 0;
       gainL ??= Math.sqrt(0.5 - 0.5 * panspread);
       gainR ??= Math.sqrt(0.5 + 0.5 * panspread);
@@ -1384,8 +1376,8 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
         if (warpMode === WarpMode.FLIP && this.phases[n] < warpAmount) {
           s = -s;
         }
-        outL[i] += s * gainL * normalizer;
-        outR[i] += s * gainR * normalizer;
+        outL[i] += s * gainL * this.normalizer;
+        outR[i] += s * gainR * this.normalizer;
         this.phases[n] = frac(this.phases[n] + dPhase);
         // invert right and left gain
         const tmp = gainL;

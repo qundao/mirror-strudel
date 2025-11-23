@@ -191,22 +191,13 @@ export function registerSynthSounds() {
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);
       const vibratoOscillator = getVibratoOscillator(o.parameters.get('detune'), value, begin);
       const fm = applyFM(o.parameters.get('frequency'), value, begin);
-      getParamADSR(
-        o.parameters.get('postgain'),
-        attack,
-        decay,
-        sustain,
-        release,
-        0,
-        0.3 * gainAdjustment,
-        begin,
-        holdend,
-        'linear',
-      );
+      const envGain = o.connect(gainNode(1));
+      getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 0.3 * gainAdjustment, begin, holdend, 'linear');
       const timeoutNode = webAudioTimeout(
         ac,
         () => {
           destroyAudioWorkletNode(o);
+          envGain.disconnect();
           releaseVoice('supersaw', o);
           onended();
           fm?.stop();
@@ -217,7 +208,7 @@ export function registerSynthSounds() {
       );
 
       return {
-        node: o,
+        node: envGain,
         stop: (time) => {
           timeoutNode.stop(time);
         },

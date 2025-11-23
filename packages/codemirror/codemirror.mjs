@@ -162,6 +162,7 @@ export class StrudelMirror {
     this.onDraw = onDraw || this.draw;
     this.id = id || s4();
     this.solo = solo;
+    this.hasPainters = false;
 
     this.drawer = new Drawer((haps, time, _, painters) => {
       const currentFrame = haps.filter((hap) => hap.isActive(time));
@@ -177,7 +178,7 @@ export class StrudelMirror {
       onToggle: (started) => {
         replOptions?.onToggle?.(started);
         if (started) {
-          this.drawer.start(this.repl.scheduler);
+          this.shouldAnimate() && this.drawer.start(this.repl.scheduler);
           if (this.solo) {
             // stop other repls when this one is started
             document.dispatchEvent(
@@ -207,9 +208,10 @@ export class StrudelMirror {
         updateWidgets(this.editor, widgets);
         updateMiniLocations(this.editor, this.miniLocations);
         replOptions?.afterEval?.(options);
+        this.hasPainters = options.pattern.getPainters().length > 0;
         // if no painters are set (.onPaint was not called), then we only need
         // the present moment (for highlighting)
-        const drawTime = options.pattern.getPainters().length ? this.drawTime : [0, 0];
+        const drawTime = this.hasPainters ? this.drawTime : [0, 0];
         this.drawer.setDrawTime(drawTime);
         // invalidate drawer after we've set the appropriate drawTime
         this.drawer.invalidate(this.repl.scheduler);
@@ -327,6 +329,12 @@ export class StrudelMirror {
     }
     highlightMiniLocations(this.editor, time, haps);
   }
+  shouldAnimate() {
+    return (
+      this.repl.scheduler.started &&
+      (this.isPatternHighlightingEnabled || this.hasPainters || this.onDraw !== this.draw)
+    );
+  }
   setFontSize(size) {
     this.root.style.fontSize = size + 'px';
   }
@@ -343,13 +351,15 @@ export class StrudelMirror {
       return;
     }
     value = parseBooleans(value);
-    if (key === 'isPatternHighlightingEnabled') {
-      this.isPatternHighlightingEnabled = value;
-    }
     const newValue = extensions[key](value, this);
     this.editor.dispatch({
       effects: compartments[key].reconfigure(newValue),
     });
+    if (key === 'isPatternHighlightingEnabled') {
+      this.isPatternHighlightingEnabled = value;
+      this.drawer.stop();
+      this.shouldAnimate() && this.drawer.start(this.repl.scheduler);
+    }
     if (key === 'theme') {
       activateTheme(value);
     }
