@@ -72,7 +72,9 @@ export function registerSynthSounds() {
         stop(envEnd);
         return {
           node,
-          stop,
+          stop: (endTime) => {
+            stop(endTime);
+          },
         };
       },
       { type: 'synth', prebake: true },
@@ -139,7 +141,9 @@ export function registerSynthSounds() {
 
       return {
         node,
-        stop: o.stop,
+        stop: (endTime) => {
+          o.stop(endTime);
+        },
       };
     },
     { type: 'synth', prebake: true },
@@ -210,7 +214,9 @@ export function registerSynthSounds() {
 
       return {
         node: o,
-        stop: timeoutNode.stop,
+        stop: (time) => {
+          timeoutNode.stop(time);
+        },
       };
     },
     { prebake: true, type: 'synth' },
@@ -284,7 +290,9 @@ export function registerSynthSounds() {
 
       return {
         node: envGain,
-        stop: timeoutNode.stop,
+        stop: (time) => {
+          timeoutNode.stop(time);
+        },
       };
     },
     { prebake: true, type: 'synth' },
@@ -359,7 +367,9 @@ export function registerSynthSounds() {
 
       return {
         node: envGain,
-        stop: timeoutNode.stop,
+        stop: (time) => {
+          timeoutNode.stop(time);
+        },
       };
     },
     { prebake: true, type: 'synth' },
@@ -402,7 +412,9 @@ export function registerSynthSounds() {
         stop(envEnd);
         return {
           node,
-          stop,
+          stop: (endTime) => {
+            stop(endTime);
+          },
         };
       },
       { type: 'synth', prebake: true },

@@ -334,6 +334,8 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
     t,
     envEnd,
   );
-  handle.stop = timeoutNode.stop;
+  handle.stop = (time) => {
+    timeoutNode.stop(time);
+  };
   return handle;
 }

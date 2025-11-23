@@ -48,6 +48,7 @@ export const claimVoice = (key) => {
     const ref = pool.pop();
     node = ref?.deref?.();
   }
+  node?.reset();
   return node;
 };
 

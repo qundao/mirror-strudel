@@ -26,7 +26,7 @@ const ffrac = (x) => x - ffloor(x);
 
 const fast_tanh = (x) => {
   const x2 = x * x;
-  return (x * (27.0 + x2)) / (27.0 + 9.0 * x2);
+  return (x * (27 + x2)) / (27 + 9 * x2);
 };
 const fastexpm1 = (x) => x * (1 + x + 0.5 * x * x); // Taylor approximation
 
@@ -40,8 +40,19 @@ const getDetuner = (unison, detune) => {
   return (voiceIdx) => voiceIdx * scale - center;
 };
 
+function fastPow2(x) {
+  // Taylor approximation of 2 ^ x
+  const a = x * 0.6931471805599453; // ln(2)
+  return 1 + a * (1 + a * (0.8333333333333333 + a));
+}
+
 const applySemitoneDetuneToFrequency = (frequency, detune) => {
   return frequency * Math.pow(2, detune / 12);
+};
+
+const applyFastDetune = (frequency, detune) => {
+  if (detune < 4) return frequency * fastPow2(detune / 12);
+  return applySemitoneDetuneToFrequency(frequency, detune);
 };
 
 // Smooth waveshape near discontinuities to remove frequencies above Nyquist and prevent aliasing
@@ -475,14 +486,12 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
         max: Number.POSITIVE_INFINITY,
         min: 0,
       },
-
       {
         name: 'end',
         defaultValue: 0,
         max: Number.POSITIVE_INFINITY,
         min: 0,
       },
-
       {
         name: 'frequency',
         defaultValue: 440,
@@ -520,7 +529,7 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
   process(_input, outputs, params) {
     const started = currentTime >= params.begin[0];
     const end = params.end[0];
-    const ended = currentTime >= end + 0.25;
+    const ended = currentTime >= end + 1;
     const inGracePeriod = (currentTime >= end) && !ended;
     if (started|| inGracePeriod) {
       return true;
@@ -558,7 +567,7 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       detuner ??= getDetuner(voices, freqspread);
       for (let n = 0; n < voices; n++) {
         // Individual voice detuning
-        const freqVoice = applySemitoneDetuneToFrequency(freq, detuner(n));
+        const freqVoice = applyFastDetune(freq, detuner(n));
         // We must wrap this here because it is passed into sawblep below which
         // has domain [0, 1]
         const dt = frac(freqVoice * INVSR);
@@ -1350,7 +1359,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
   process(_inputs, outputs, params) {
     const started = currentTime >= params.begin[0];
     const end = params.end[0];
-    const ended = currentTime >= end + 0.25;
+    const ended = currentTime >= end + 1;
     const inGracePeriod = (currentTime >= end) && !ended;
     if (!this.tables || started || inGracePeriod) {
       return true;
@@ -1395,7 +1404,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       freq ??= applySemitoneDetuneToFrequency(pv(params.frequency, i), detune / 100); // overall detune
       detuner ??= getDetuner(voices, freqspread);
       for (let n = 0; n < voices; n++) {
-        const fVoice = applySemitoneDetuneToFrequency(f, detuner(n)); // voice detune
+        const fVoice = applyFastDetune(f, detuner(n)); // voice detune
         const dPhase = fVoice * INVSR;
         const level = this._chooseMip(dPhase);
         const table = this.tables[level];
