@@ -496,13 +496,8 @@ const _chebyshev = (x, k) => {
   let tnm1 = 1;
   let tnm2 = x;
   let tn;
-  let y = 0;
-  for (let i = 1; i < 64; i++) {
-    if (i < 2) {
-      // Already set inital conditions
-      y += i == 0 ? tnm1 : tnm2;
-      continue;
-    }
+  let y = x;
+  for (let i = 2; i < 64; i++) {
     tn = 2 * x * tnm1 - tnm2; // https://en.wikipedia.org/wiki/Chebyshev_polynomials#Recurrence_definition
     tnm2 = tnm1;
     tnm1 = tn;
