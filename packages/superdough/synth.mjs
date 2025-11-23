@@ -15,7 +15,6 @@ import {
   getWorklet,
   setParams,
   releaseVoice,
-  removeVoice,
   noises,
   webAudioTimeout,
 } from './helpers.mjs';
@@ -180,13 +179,11 @@ export function registerSynthSounds() {
         voices,
       };
       if (o == null) {
-        console.log('Building');
         o = getWorklet(ac, 'supersaw-oscillator', params, {
           outputChannelCount: [2],
           processorOptions,
         });
       } else {
-        console.log('Reusing');
         setParams(o, params);
         o.port.postMessage({ type: 'reset', payload: { processorOptions } });
       }
@@ -209,14 +206,8 @@ export function registerSynthSounds() {
       const timeoutNode = webAudioTimeout(
         ac,
         () => {
-          const id = Math.floor(Math.random() * 10000);
           destroyAudioWorkletNode(o);
-          releaseVoice('supersaw', id, o);
-          o.port.onmessage = (e) => {
-            if (e.data.type === 'finished') {
-              removeVoice('supersaw', id);
-            }
-          };
+          releaseVoice('supersaw', o);
           onended();
           fm?.stop();
           vibratoOscillator?.stop();

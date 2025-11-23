@@ -12,7 +12,6 @@ import {
   getWorklet,
   setParams,
   releaseVoice,
-  removeVoice,
   webAudioTimeout,
   destroyAudioWorkletNode,
 } from './helpers.mjs';
@@ -255,11 +254,6 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
     logger(`[wavetable] still loading sound "${s}:${n}"`, 'highlight');
     destroyAudioWorkletNode(source);
     releaseVoice(voiceKey, source);
-    source.port.onmessage = (e) => {
-      if (e.data.type === 'finished') {
-        removeVoice(voiceKey, id);
-      }
-    };
     return;
   }
   const posADSRParams = [value.wtattack, value.wtdecay, value.wtsustain, value.wtrelease];
@@ -337,13 +331,7 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
       wtPosModulators?.disconnect();
       wtWarpModulators?.disconnect();
       destroyAudioWorkletNode(source);
-      const id = Math.floor(Math.random() * 10000);
-      releaseVoice(voiceKey, id, source);
-      source.port.onmessage = (e) => {
-        if (e.data.type === 'finished') {
-          removeVoice(voiceKey, id);
-        }
-      };
+      releaseVoice(voiceKey, source);
       onended();
     },
     t,

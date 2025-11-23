@@ -41,25 +41,20 @@ const voicePools = {};
 
 // Cycles through the pool attempting to find an inactive voice that hasn't been GC'd
 export const claimVoice = (key) => {
-  voicePools[key] ??= {};
+  voicePools[key] ??= [];
   const pool = voicePools[key];
   let node;
-  for (const [id, ref] of Object.entries(pool)) {
+  while (pool.length && !node) {
+    const ref = pool.pop();
     node = ref?.deref?.();
-    delete pool[id];
-    if (node !== null) break;
   }
   return node;
 };
 
 // Releases a voice from use and adds to the inactive pool
-export const releaseVoice = (key, id, node) => {
-  voicePools[key] ??= {};
-  voicePools[key][id] = new WeakRef(node);
-};
-
-export const removeVoice = (key, id) => {
-  delete voicePools[key][id];
+export const releaseVoice = (key, node) => {
+  voicePools[key] ??= [];
+  voicePools[key].push(new WeakRef(node));
 };
 
 export const getParamADSR = (
