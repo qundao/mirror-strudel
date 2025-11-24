@@ -617,14 +617,13 @@ class PitchProcessor extends OLAProcessor {
     let pitchFactor = parameters.pitchFactor[parameters.pitchFactor.length - 1];
     if (this.vocoderMode) {
       pitchFactor = pitchFactor < 0 ? pitchFactor * 0.25 : pitchFactor;
-      pitchFactor = Math.max(0, pitchFactor + 1);
+      pitchFactor += 1;
     }
     pitchFactor = Math.max(0.01, pitchFactor);
     for (let i = 0; i < this.nbInputs; i++) {
       for (let j = 0; j < inputs[i].length; j++) {
         const input = inputs[i][j];
         const output = outputs[i][j];
-
         this.applyHannWindow(input);
         this.fft.realTransform(this.freqComplexBuffer, input);
 
