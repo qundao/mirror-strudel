@@ -677,8 +677,7 @@ class PitchProcessor extends OLAProcessor {
         break;
       }
       const lower = ffloor(sourceBin);
-      let upper = lower + 1;
-      upper = upper > nyquist ? upper : nyquist;
+      const upper = lower + 1 > nyquist ? nyquist : lower + 1;
       const t = sourceBin - lower;
       const lowerIndex = lower * 2;
       const upperIndex = upper * 2;
