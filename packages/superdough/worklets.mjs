@@ -580,10 +580,13 @@ class PitchProcessor extends OLAProcessor {
   }
 
   constructor(options) {
-    options.processorOptions = {
-      blockSize: BUFFERED_BLOCK_SIZE,
+    const parentOptions = {
+      ...options,
+      processorOptions: {
+        blockSize: BUFFERED_BLOCK_SIZE,
+      },
     };
-    super(options);
+    super(parentOptions);
 
     // if true, use spectral peak-finding to cluster strong bins ('stretch')
     // else, use simple shift & interpolate ('pitch')
@@ -600,7 +603,6 @@ class PitchProcessor extends OLAProcessor {
     this.freqComplexBufferShifted = this.fft.createComplexArray();
     this.timeComplexBuffer = this.fft.createComplexArray();
     this.timeCursor = 0;
-    this.vocoderMode = this.mode === 0;
 
     // for peak tracking in phase vocoder mode
     if (this.vocoderMode) {
@@ -651,6 +653,19 @@ class PitchProcessor extends OLAProcessor {
     }
   }
 
+  writeShiftedBin(destBin, valueReal, valueImag, phaseShiftReal, phaseShiftImag, accumulate) {
+    const shiftedReal = valueReal * phaseShiftReal - valueImag * phaseShiftImag;
+    const shiftedImag = valueReal * phaseShiftImag + valueImag * phaseShiftReal;
+    const destIndex = destBin * 2;
+    if (accumulate) {
+      this.freqComplexBufferShifted[destIndex] += shiftedReal;
+      this.freqComplexBufferShifted[destIndex + 1] += shiftedImag;
+    } else {
+      this.freqComplexBufferShifted[destIndex] = shiftedReal;
+      this.freqComplexBufferShifted[destIndex + 1] = shiftedImag;
+    }
+  }
+
   /** Shift entire spectrum with simple resampling */
   shiftSpectrum(pitchFactor) {
     // zero-fill new spectrum
@@ -676,11 +691,7 @@ class PitchProcessor extends OLAProcessor {
       const omegaDelta = TWO_PI * this.invfftSize * (destBin - sourceBin);
       const phaseShiftReal = Math.cos(omegaDelta * this.timeCursor);
       const phaseShiftImag = Math.sin(omegaDelta * this.timeCursor);
-      const shiftedReal = real * phaseShiftReal - imag * phaseShiftImag;
-      const shiftedImag = real * phaseShiftImag + imag * phaseShiftReal;
-      const destIndex = destBin * 2;
-      this.freqComplexBufferShifted[destIndex] = shiftedReal;
-      this.freqComplexBufferShifted[destIndex + 1] = shiftedImag;
+      this.writeShiftedBin(destBin, real, imag, phaseShiftReal, phaseShiftImag, false);
     }
   }
 
@@ -755,14 +766,7 @@ class PitchProcessor extends OLAProcessor {
         const indexImag = indexReal + 1;
         const valueReal = this.freqComplexBuffer[indexReal];
         const valueImag = this.freqComplexBuffer[indexImag];
-
-        const valueShiftedReal = valueReal * phaseShiftReal - valueImag * phaseShiftImag;
-        const valueShiftedImag = valueReal * phaseShiftImag + valueImag * phaseShiftReal;
-
-        const indexShiftedReal = 2 * binIndexShifted;
-        const indexShiftedImag = indexShiftedReal + 1;
-        this.freqComplexBufferShifted[indexShiftedReal] += valueShiftedReal;
-        this.freqComplexBufferShifted[indexShiftedImag] += valueShiftedImag;
+        this.writeShiftedBin(binIndexShifted, valueReal, valueImag, phaseShiftReal, phaseShiftImag, true);
       }
     }
   }
