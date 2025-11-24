@@ -451,6 +451,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     compressorKnee,
     compressorAttack,
     compressorRelease,
+    pshift,
   } = value;
 
   delaytime = delaytime ?? cycleToSeconds(delaysync, cps);
@@ -530,7 +531,9 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
   const chain = []; // audio nodes that will be connected to each other sequentially
   chain.push(sourceNode);
-  stretch !== undefined && chain.push(getWorklet(ac, 'phase-vocoder-processor', { pitchFactor: stretch }));
+  stretch !== undefined && chain.push(getWorklet(ac, 'pitch-processor', { pitchFactor: stretch }));
+  pshift !== undefined &&
+    chain.push(getWorklet(ac, 'pitch-processor', { pitchFactor: pshift }, { processorOptions: { mode: 1 } }));
 
   // gain stage
   chain.push(gainNode(gain));

@@ -569,12 +569,12 @@ function genHannWindow(length) {
   return hannCache.get(length);
 }
 
-class PhaseVocoderProcessor extends OLAProcessor {
+class PitchProcessor extends OLAProcessor {
   static get parameterDescriptors() {
     return [
       {
         name: 'pitchFactor',
-        defaultValue: 1.0,
+        defaultValue: 1,
       },
     ];
   }
@@ -584,42 +584,63 @@ class PhaseVocoderProcessor extends OLAProcessor {
       blockSize: BUFFERED_BLOCK_SIZE,
     };
     super(options);
-    this.timeCursor = 0;
+
+    // if true, use spectral peak-finding to cluster strong bins ('stretch')
+    // else, use simple shift & interpolate ('pitch')
+    this.vocoderMode = options.processorOptions.vocoderMode ?? true;
+
     this.fftSize = this.blockSize;
     this.invfftSize = 1 / this.fftSize;
     this.hannWindow = genHannWindow(this.fftSize);
     // prepare FFT and pre-allocate buffers
+    this.nyquistBin = this.fftSize / 2;
+    this.hannWindow = genHannWindow(this.blockSize);
     this.fft = new FFT(this.fftSize);
     this.freqComplexBuffer = this.fft.createComplexArray();
     this.freqComplexBufferShifted = this.fft.createComplexArray();
     this.timeComplexBuffer = this.fft.createComplexArray();
-    this.magnitudes = new Float32Array(this.fftSize / 2 + 1);
-    this.peakIndexes = new Int32Array(this.magnitudes.length);
-    this.nbPeaks = 0;
+    this.timeCursor = 0;
+    this.vocoderMode = this.mode === 0;
+
+    // for peak tracking in phase vocoder mode
+    if (this.vocoderMode) {
+      this.magnitudes = new Float32Array(this.fftSize / 2 + 1);
+      this.peakIndexes = new Int32Array(this.magnitudes.length);
+      this.nbPeaks = 0;
+    }
   }
 
   processOLA(inputs, outputs, parameters) {
     // no automation, take last value
     let pitchFactor = parameters.pitchFactor[parameters.pitchFactor.length - 1];
-    if (pitchFactor < 0) {
-      pitchFactor = pitchFactor * 0.25;
+    pitchFactor = Math.max(0.01, pitchFactor);
+    if (this.vocoderMode) {
+      pitchFactor = pitchFactor < 0 ? pitchFactor * 0.25 : pitchFactor;
+      pitchFactor = Math.max(0, pitchFactor + 1);
     }
-    pitchFactor = Math.max(0, pitchFactor + 1);
     for (let i = 0; i < this.nbInputs; i++) {
       for (let j = 0; j < inputs[i].length; j++) {
         const input = inputs[i][j];
         const output = outputs[i][j];
+
         this.applyHannWindow(input);
         this.fft.realTransform(this.freqComplexBuffer, input);
-        this.computeMagnitudes();
-        this.findPeaks();
-        this.shiftPeaks(pitchFactor);
+
+        if (this.vocoderMode) {
+          this.computeMagnitudes();
+          this.findPeaks();
+          this.shiftPeaks(pitchFactor);
+        } else {
+          this.shiftSpectrum(pitchFactor);
+        }
+
         this.fft.completeSpectrum(this.freqComplexBufferShifted);
         this.fft.inverseTransform(this.timeComplexBuffer, this.freqComplexBufferShifted);
         this.fft.fromComplexArray(this.timeComplexBuffer, output);
         this.applyHannWindow(output);
       }
     }
+
     this.timeCursor += this.hopSize;
   }
 
@@ -627,6 +648,39 @@ class PhaseVocoderProcessor extends OLAProcessor {
   applyHannWindow(input) {
     for (let i = 0; i < this.blockSize; i++) {
       input[i] *= this.hannWindow[i] * 1.62;
+    }
+  }
+
+  /** Shift entire spectrum with simple resampling */
+  shiftSpectrum(pitchFactor) {
+    // zero-fill new spectrum
+    this.freqComplexBufferShifted.fill(0);
+    const nyquist = this.nyquistBin;
+    for (let destBin = 0; destBin <= nyquist; destBin++) {
+      const sourceBin = destBin / pitchFactor;
+      if (sourceBin > nyquist) {
+        break;
+      }
+      const lower = ffloor(sourceBin);
+      let upper = lower + 1;
+      upper = upper > nyquist ? upper : nyquist;
+      const t = sourceBin - lower;
+      const lowerIndex = lower * 2;
+      const upperIndex = upper * 2;
+      const realLower = this.freqComplexBuffer[lowerIndex];
+      const imagLower = this.freqComplexBuffer[lowerIndex + 1];
+      const realUpper = this.freqComplexBuffer[upperIndex];
+      const imagUpper = this.freqComplexBuffer[upperIndex + 1];
+      const real = lerp(realLower, realUpper, t);
+      const imag = lerp(imagLower, imagUpper, t);
+      const omegaDelta = TWO_PI * this.invfftSize * (destBin - sourceBin);
+      const phaseShiftReal = Math.cos(omegaDelta * this.timeCursor);
+      const phaseShiftImag = Math.sin(omegaDelta * this.timeCursor);
+      const shiftedReal = real * phaseShiftReal - imag * phaseShiftImag;
+      const shiftedImag = real * phaseShiftImag + imag * phaseShiftReal;
+      const destIndex = destBin * 2;
+      this.freqComplexBufferShifted[destIndex] = shiftedReal;
+      this.freqComplexBufferShifted[destIndex + 1] = shiftedImag;
     }
   }
 
@@ -714,7 +768,7 @@ class PhaseVocoderProcessor extends OLAProcessor {
   }
 }
 
-registerProcessor('phase-vocoder-processor', PhaseVocoderProcessor);
+registerProcessor('pitch-processor', PitchProcessor);
 
 // Adapted from https://www.musicdsp.org/en/latest/Effects/221-band-limited-pwm-generator.html
 class PulseOscillatorProcessor extends AudioWorkletProcessor {
