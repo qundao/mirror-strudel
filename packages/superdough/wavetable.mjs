@@ -134,7 +134,7 @@ function githubPath(base, subpath = '') {
   return `https://raw.githubusercontent.com/${path}/${subpath}`;
 }
 
-const _processTables = (json, baseUrl, frameLen) => {
+const _processTables = (json, baseUrl, frameLen, options = {}) => {
   baseUrl = json._base || baseUrl;
   return Object.entries(json).forEach(([key, tables]) => {
     if (key === '_base') return false;
