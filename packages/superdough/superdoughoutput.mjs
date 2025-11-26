@@ -85,7 +85,7 @@ export class Orbit {
     return effectSend(node, this.delayNode, amount);
   }
 
-  duck(t, onsettime = 0, attacktime = 0.1, depth = 1) {
+  duck(t, onsettime = 0, attacktime = 0.16, depth = 0.8) {
     const onset = onsettime;
     const attack = Math.max(attacktime, 0.002);
     const gainParam = this.output.gain;
@@ -178,7 +178,7 @@ export class SuperdoughAudioController {
     this.output.reset();
   }
 
-  duck(targetOrbits, t, onsettime = 0, attacktime = 0.1, depth = 1) {
+  duck(targetOrbits, t, onsettime = 0, attacktime = 0.16, depth = 0.8) {
     const targetArr = [targetOrbits].flat();
     const onsetArr = [onsettime].flat();
     const attackArr = [attacktime].flat();
