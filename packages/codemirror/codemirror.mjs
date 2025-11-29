@@ -163,15 +163,10 @@ export class StrudelMirror {
     this.id = id || s4();
     this.solo = solo;
     this.hasPainters = false;
-    this.highlightFPS = 15;
-    this.highlightInterval = 1 / this.highlightFPS;
-    this.lastHighlightTime = 0;
 
     this.drawer = new Drawer((haps, time, _, painters) => {
-      if (this.shouldHighlight()) {
-        const currentFrame = haps.filter((hap) => hap.isActive(time));
-        this.highlight(currentFrame, time);
-      }
+      const currentFrame = haps.filter((hap) => hap.isActive(time));
+      this.highlight(currentFrame, time);
       this.onDraw(haps, time, painters);
     }, drawTime);
 
@@ -328,18 +323,6 @@ export class StrudelMirror {
   flash(ms) {
     flash(this.editor, ms);
   }
-  shouldHighlight() {
-    if (!this.isPatternHighlightingEnabled) {
-      return false;
-    }
-    // Verify we're highlighting at the correct FPS
-    const now = getPerformanceTimeSeconds();
-    if (now - this.lastHighlightTime < this.highlightInterval) {
-      return false;
-    }
-    this.lastHighlightTime = now;
-    return true;
-  }
   highlight(haps, time) {
     if (!this.isPatternHighlightingEnabled) {
       return;
@@ -374,7 +357,6 @@ export class StrudelMirror {
     });
     if (key === 'isPatternHighlightingEnabled') {
       this.isPatternHighlightingEnabled = value;
-      this.lastHighlightTime = 0;
       this.drawer.stop();
       this.shouldAnimate() && this.drawer.start(this.repl.scheduler);
     }

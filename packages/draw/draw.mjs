@@ -6,6 +6,8 @@ This program is free software: you can redistribute it and/or modify it under th
 
 import { Pattern, getTime, State, TimeSpan } from '@strudel/core';
 
+const ANIMATE_INTERVAL = 1000 / 15; // 15 FPS
+
 export const getDrawContext = (id = 'test-canvas', options) => {
   let { contextType = '2d', pixelated = false, pixelRatio = window.devicePixelRatio } = options || {};
   let canvas = document.querySelector('#' + id);
@@ -112,7 +114,13 @@ export class Framer {
   }
   start() {
     const self = this;
+    let lastTime = 0;
     let frame = requestAnimationFrame(function updateHighlights(time) {
+      if (time - lastTime < ANIMATE_INTERVAL) {
+        frame = requestAnimationFrame(updateHighlights);
+        return;
+      }
+      lastTime = time;
       try {
         self.onFrame(time);
       } catch (err) {
