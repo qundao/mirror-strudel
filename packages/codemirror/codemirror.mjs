@@ -12,7 +12,7 @@ import {
   lineNumbers,
 } from '@codemirror/view';
 import { persistentAtom } from '@nanostores/persistent';
-import { getPerformanceTimeSeconds, logger, registerControl, repl } from '@strudel/core';
+import { logger, registerControl, repl } from '@strudel/core';
 import { cleanupDraw, Drawer } from '@strudel/draw';
 
 import { isAutoCompletionEnabled } from './autocomplete.mjs';
