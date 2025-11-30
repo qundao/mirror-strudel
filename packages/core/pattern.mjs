@@ -1461,22 +1461,33 @@ export function cat(...pats) {
  * ).note()
  */
 export function arrange(...input) {
-  let sects = [];
-  if (!Array.isArray(input[0])) {
-    if (input.length % 2 !== 0) {
-      throw new Error('Arrange needs a length paramter and a pattern');
-    }
-    for (let i = 0; i < input.length; i += 2) {
-      let cycles = input.at(i);
-      let pattern = input.at(i + 1);
-      sects.push([cycles, pattern]);
-    }
-  } else {
-    // Handle deprecated arrange input
-    sects = input;
+  if (Array.isArray(input[0])) {
+    return arrange_deprecated(...input);
   }
+
+  if (input.length % 2 !== 0) {
+    throw new Error('Arrange needs a length paramter and a pattern');
+  }
+  let sects = [];
+  let total = 0;
+  for (let i = 0; i < input.length; i += 2) {
+    let cycles = input.at(i);
+    total += cycles;
+
+    let pattern = input.at(i + 1);
+    sects.push([cycles, pattern.fast(cycles)]);
+  }
+  return stepcat(...sects).slow(total);
+}
+// handle old array syntax ex:
+//  arrange(
+//    [4, "<c a f e>(3,8)"],
+//    [2, "<g a>(5,8)"]
+//  ).note()
+//
+function arrange_deprecated(...sects) {
   const total = sects.reduce((sum, [cycles]) => sum + cycles, 0);
-  sects = sects.map(([cycles, section]) => [cycles, section.fast(cycles)]);
+  sects = sects.map(([cycles, pattern]) => [cycles, pattern.fast(cycles)]);
   return stepcat(...sects).slow(total);
 }
 
