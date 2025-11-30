@@ -1466,7 +1466,7 @@ export function arrange(...input) {
   }
 
   if (input.length % 2 !== 0) {
-    throw new Error('Arrange needs a length paramter and a pattern');
+    throw new Error('Arrange needs a length paramter for each pattern (length, pattern, length, pattern)');
   }
   let sects = [];
   let total = 0;
