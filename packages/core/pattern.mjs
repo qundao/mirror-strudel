@@ -1464,11 +1464,11 @@ export function arrange(...input) {
   let sects = [];
   if (!Array.isArray(input[0])) {
     if (input.length % 2 !== 0) {
-      throw new Error('Arrange needs a length paramter and a pattern')
+      throw new Error('Arrange needs a length paramter and a pattern');
     }
-    for (let i = 0; i < input.length; i += 2) { 
-      let cycles = input.at(i)
-      let pattern = input.at(i + 1)
+    for (let i = 0; i < input.length; i += 2) {
+      let cycles = input.at(i);
+      let pattern = input.at(i + 1);
       sects.push([cycles, pattern]);
     }
   } else {
@@ -1478,9 +1478,6 @@ export function arrange(...input) {
   const total = sects.reduce((sum, [cycles]) => sum + cycles, 0);
   sects = sects.map(([cycles, section]) => [cycles, section.fast(cycles)]);
   return stepcat(...sects).slow(total);
-
-
-
 }
 
 /**
@@ -1875,9 +1872,9 @@ export const { fastGap, fastgap } = register(['fastGap', 'fastgap'], function (f
     const newWhole = !hap.whole
       ? undefined
       : new TimeSpan(
-        newPart.begin.sub(begin.sub(hap.whole.begin).div(factor)),
-        newPart.end.add(hap.whole.end.sub(end).div(factor)),
-      );
+          newPart.begin.sub(begin.sub(hap.whole.begin).div(factor)),
+          newPart.end.add(hap.whole.end.sub(end).div(factor)),
+        );
     return new Hap(newWhole, newPart, hap.value, hap.context);
   };
   return pat.withQuerySpanMaybe(qf).withHap(ef).splitQueries();
