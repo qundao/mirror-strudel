@@ -1,10 +1,12 @@
-name: Strudel tests
+name: Strudel test + warm deploy
 
 on: [push, pull_request]
 
 jobs:
-  build:
+  test-and-warm-deploy:
     runs-on: docker
+    env:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     strategy:
       matrix:
         node-version: [20]
@@ -24,3 +26,15 @@ jobs:
       - run: pnpm run format-check
       - run: pnpm run lint
       - run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Warm deploy
+        # automatically deploy to warm on pushes to main
+        if: ${{ forgejo.event_name != 'pull_request' && forgejo.ref == 'refs/heads/main' }}
+        run: |
+          eval $(ssh-agent -s)
+          echo "$SSH_PRIVATE_KEY" | ssh-add -
+          apt update && apt install -y rsync
+          mkdir ~/.ssh
+          ssh-keyscan matrix.toplap.org  > ~/.ssh/known_hosts
+          rsync -atv --delete --delete-after --progress ./website/dist/ strudel@matrix.toplap.org:/home/strudel/deploy/warm.strudel.cc    
