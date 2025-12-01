@@ -27,10 +27,11 @@ jobs:
       - run: pnpm run lint
       - run: pnpm test
       - name: Build
+        if: ${{ (forgejo.event_name != 'pull_request') && (forgejo.ref == 'refs/heads/main') }}
         run: pnpm build
       - name: Warm deploy
         # automatically deploy to warm on pushes to main
-        if: ${{ forgejo.event_name != 'pull_request' && forgejo.ref == 'refs/heads/main' }}
+        if: ${{ (forgejo.event_name != 'pull_request') && (forgejo.ref == 'refs/heads/main') }}
         run: |
           eval $(ssh-agent -s)
           echo "$SSH_PRIVATE_KEY" | ssh-add -
