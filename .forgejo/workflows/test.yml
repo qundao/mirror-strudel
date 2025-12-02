@@ -15,9 +15,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Debug Forgejo context
         run: |
+          echo "hmm"
           echo "EVENT_NAME = ${{ forgejo.event_name }}"
           echo "REF       = ${{ forgejo.ref }}"
           echo "REF_NAME  = ${{ forgejo.ref_name }}"
+          echo "EVENT_NAME = $FORGEJO_EVENT_NAME"
+          echo "REF        = $FORGEJO_REF"
+          echo "REF_NAME   = $FORGEJO_REF_NAME"
       - name: apt install ztd
         run: apt update && apt install -y zstd
       - uses: pnpm/action-setup@v4
