@@ -9,15 +9,15 @@ import {
   getLfo,
   getParamADSR,
   getPitchEnvelope,
+  getPooledWorklet,
   getVibratoOscillator,
-  getWorklet,
   noises,
   releaseAudioNode,
   webAudioTimeout,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
 import { getNoiseMix, getNoiseOscillator } from './noise.mjs';
-import { getNodeFromPool, markWorkletAsDead, releaseNodeToPool } from './nodePools.mjs';
+import { releaseNodeToPool } from './nodePools.mjs';
 
 const waveforms = ['triangle', 'square', 'sawtooth', 'sine', 'user'];
 const waveformAliases = [
@@ -170,21 +170,9 @@ export function registerSynthSounds() {
         begin,
         end,
         freqspread: detune,
-        voices,
         panspread,
       };
-      const factory = () => new AudioWorkletNode(ac, 'supersaw-oscillator', { outputChannelCount: [2] });
-      const o = getNodeFromPool('supersaw', factory);
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          o.parameters.get(key).value = value;
-        }
-      });
-      o.port.postMessage({ type: 'initialize' });
-      o.port.onmessage = (e) => {
-        if (e.data.type === 'died') markWorkletAsDead(o);
-        o.port.onmessage = null;
-      };
+      const o = getPooledWorklet(ac, 'supersaw-oscillator', params, { outputChannelCount: [2] }, { voices });
       const gainAdjustment = 1 / Math.sqrt(voices);
       getPitchEnvelope(o.parameters.get('detune'), value, begin, holdend);
       const vibratoOscillator = getVibratoOscillator(o.parameters.get('detune'), value, begin);
@@ -251,7 +239,7 @@ export function registerSynthSounds() {
       const holdend = begin + duration;
       const end = holdend + release + 0.01;
 
-      let o = getWorklet(
+      let o = getPooledWorklet(
         ac,
         'byte-beat-processor',
         {
@@ -318,7 +306,7 @@ export function registerSynthSounds() {
       );
       const holdend = begin + duration;
       const end = holdend + release + 0.01;
-      let o = getWorklet(
+      let o = getPooledWorklet(
         ac,
         'pulse-oscillator',
         {

@@ -1,10 +1,11 @@
 // coarse, crush, and shape processors adapted from dktr0's webdirt: https://github.com/dktr0/WebDirt/blob/5ce3d698362c54d6e1b68acc47eb2955ac62c793/dist/AudioWorklets.js
 // LICENSE GNU General Public License v3.0 see https://github.com/dktr0/WebDirt/blob/main/LICENSE
-// TOFIX: THIS FILE DOES NOT SUPPORT IMPORTS ON DEPOLYMENT
+// TOFIX: THIS FILE DOES NOT SUPPORT IMPORTS ON DEPLOYMENT
 
 import OLAProcessor from './ola-processor';
 import FFT from './fft.js';
 import { getDistortionAlgorithm } from './helpers.mjs';
+import { makeReusable } from './worklets-common.mjs';
 
 const blockSize = 128;
 const PI = Math.PI;
@@ -108,12 +109,12 @@ const waveshapes = {
 };
 
 const waveShapeNames = Object.keys(waveshapes);
-class LFOProcessor extends AudioWorkletProcessor {
+
+class LFOProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
     return [
-      { name: 'begin', defaultValue: 0 },
+      ...super.parameterDescriptors,
       { name: 'time', defaultValue: 0 },
-      { name: 'end', defaultValue: 0 },
       { name: 'frequency', defaultValue: 0.5 },
       { name: 'skew', defaultValue: 0.5 },
       { name: 'depth', defaultValue: 1 },
@@ -126,9 +127,8 @@ class LFOProcessor extends AudioWorkletProcessor {
     ];
   }
 
-  constructor() {
-    super();
-    this.phase;
+  initialize() {
+    this.phase = null;
   }
 
   incrementPhase(dt) {
@@ -138,15 +138,7 @@ class LFOProcessor extends AudioWorkletProcessor {
     }
   }
 
-  process(_inputs, outputs, parameters) {
-    const begin = parameters['begin'][0];
-    if (currentTime >= parameters.end[0]) {
-      return false;
-    }
-    if (currentTime <= begin) {
-      return true;
-    }
-
+  processActive(_inputs, outputs, parameters) {
     const output = outputs[0];
     const frequency = parameters['frequency'][0];
 
@@ -182,26 +174,14 @@ class LFOProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('lfo-processor', LFOProcessor);
 
-class CoarseProcessor extends AudioWorkletProcessor {
+class CoarseProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
-    return [{ name: 'coarse', defaultValue: 1 }];
+    return [...super.parameterDescriptors, { name: 'coarse', defaultValue: 1 }];
   }
 
-  constructor() {
-    super();
-    this.started = false;
-  }
-
-  process(inputs, outputs, parameters) {
+  processActive(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
-
-    const hasInput = !(input[0] === undefined);
-    if (this.started && !hasInput) {
-      return false;
-    }
-    this.started = hasInput;
-
     let coarse = parameters.coarse[0] ?? 0;
     coarse = Math.max(1, coarse);
     for (let n = 0; n < blockSize; n++) {
@@ -214,26 +194,17 @@ class CoarseProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('coarse-processor', CoarseProcessor);
 
-class CrushProcessor extends AudioWorkletProcessor {
+class CrushProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
-    return [{ name: 'crush', defaultValue: 0 }];
+    return [
+      ...super.parameterDescriptors,
+      { name: 'crush', defaultValue: 0 },
+    ];
   }
 
-  constructor() {
-    super();
-    this.started = false;
-  }
-
-  process(inputs, outputs, parameters) {
+  processActive(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
-
-    const hasInput = !(input[0] === undefined);
-    if (this.started && !hasInput) {
-      return false;
-    }
-    this.started = hasInput;
-
     let crush = parameters.crush[0] ?? 8;
     crush = Math.max(1, crush);
 
@@ -248,29 +219,18 @@ class CrushProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('crush-processor', CrushProcessor);
 
-class ShapeProcessor extends AudioWorkletProcessor {
+class ShapeProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
     return [
+      ...super.parameterDescriptors,
       { name: 'shape', defaultValue: 0 },
       { name: 'postgain', defaultValue: 1 },
     ];
   }
 
-  constructor() {
-    super();
-    this.started = false;
-  }
-
-  process(inputs, outputs, parameters) {
+  processActive(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
-
-    const hasInput = !(input[0] === undefined);
-    if (this.started && !hasInput) {
-      return false;
-    }
-    this.started = hasInput;
-
     let shape = parameters.shape[0];
     shape = shape < 1 ? shape : 1.0 - 4e-10;
     shape = (2.0 * shape) / (1.0 - shape);
@@ -354,17 +314,17 @@ class DJFProcessor extends AudioWorkletProcessor {
 registerProcessor('djf-processor', DJFProcessor);
 
 //adapted from https://github.com/TheBouteillacBear/webaudioworklet-wasm?tab=MIT-1-ov-file
-class LadderProcessor extends AudioWorkletProcessor {
+class LadderProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
     return [
+      ...super.parameterDescriptors,
       { name: 'frequency', defaultValue: 500 },
       { name: 'q', defaultValue: 1 },
       { name: 'drive', defaultValue: 0.69 },
     ];
   }
 
-  constructor() {
-    super();
+  initialize(_options) {
     this.started = false;
     this.p0 = [0, 0];
     this.p1 = [0, 0];
@@ -375,17 +335,9 @@ class LadderProcessor extends AudioWorkletProcessor {
     this.p34 = [0, 0];
   }
 
-  process(inputs, outputs, parameters) {
+  processActive(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
-
-    const hasInput = !(input[0] === undefined);
-    if (this.started && !hasInput) {
-      return false;
-    }
-
-    this.started = hasInput;
-
     const resonance = parameters.q[0];
     const drive = clamp(Math.exp(parameters.drive[0]), 0.1, 2000);
 
@@ -418,29 +370,18 @@ class LadderProcessor extends AudioWorkletProcessor {
 }
 registerProcessor('ladder-processor', LadderProcessor);
 
-class DistortProcessor extends AudioWorkletProcessor {
+class DistortProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
-    return [
-      { name: 'distort', defaultValue: 0 },
-      { name: 'postgain', defaultValue: 1 },
-    ];
+    return [...super.parameterDescriptors, { name: 'distort', defaultValue: 0 }, { name: 'postgain', defaultValue: 1 }];
   }
 
-  constructor({ processorOptions }) {
-    super();
-    this.started = false;
-    this.algorithm = getDistortionAlgorithm(processorOptions.algorithm);
+  initialize(options) {
+    this.algorithm = getDistortionAlgorithm(options?.algorithm);
   }
 
-  process(inputs, outputs, parameters) {
+  processActive(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
-
-    const hasInput = !(input[0] === undefined);
-    if (this.started && !hasInput) {
-      return false;
-    }
-    this.started = hasInput;
     for (let n = 0; n < blockSize; n++) {
       const postgain = clamp(pv(parameters.postgain, n), 0.001, 1);
       const shape = Math.expm1(pv(parameters.distort, n));
@@ -455,43 +396,15 @@ class DistortProcessor extends AudioWorkletProcessor {
 registerProcessor('distort-processor', DistortProcessor);
 
 // SUPERSAW
-class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.isAlive = true; // used internally to prevent multiple death messages
-    this.port.onmessage = (e) => {
-      const { type, payload } = e.data || {};
-      if (type === 'initialize') {
-        this.initialize(payload);
-      }
-    };
-    this.initialize();
-  }
-  initialize(_options) {
-    this.phase = [];
-  }
+class SuperSawOscillatorProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
     return [
-      {
-        name: 'begin',
-        defaultValue: 0,
-        max: Number.POSITIVE_INFINITY,
-        min: 0,
-      },
-
-      {
-        name: 'end',
-        defaultValue: 0,
-        max: Number.POSITIVE_INFINITY,
-        min: 0,
-      },
-
+      ...super.parameterDescriptors,
       {
         name: 'frequency',
         defaultValue: 440,
         min: Number.EPSILON,
       },
-
       {
         name: 'panspread',
         defaultValue: 0.4,
@@ -508,30 +421,14 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
         defaultValue: 0,
         min: 0,
       },
-
-      {
-        name: 'voices',
-        defaultValue: 5,
-        min: 1,
-        automationRate: 'k-rate',
-      },
     ];
   }
-  process(_input, outputs, params) {
-    if (currentTime >= params.end[0] + 0.5) {
-      // Outside of grace period - should terminate
-      if (this.isAlive) {
-        this.port.postMessage({ type: 'died' });
-        this.isAlive = false;
-      }
-      return false;
-    }
-    if (currentTime >= params.end[0] || currentTime <= params.begin[0]) {
-      // Inside of grace period or not yet started
-      return true;
-    }
+  initialize(options) {
+    this.phase = [];
+    this.voices = options?.voices ?? 5;
+  }
+  processActive(_input, outputs, params) {
     const output = outputs[0];
-    const voices = params.voices[0]; // k-rate
     for (let i = 0; i < output[0].length; i++) {
       const detune = pv(params.detune, i);
       const freqspread = pv(params.freqspread, i);
@@ -541,8 +438,8 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
       let freq = pv(params.frequency, i);
       // Main detuning
       freq = applySemitoneDetuneToFrequency(freq, detune / 100);
-      const detuner = getDetuner(voices, freqspread);
-      for (let n = 0; n < voices; n++) {
+      const detuner = getDetuner(this.voices, freqspread);
+      for (let n = 0; n < this.voices; n++) {
         // Individual voice detuning
         const freqVoice = applySemitoneDetuneToFrequency(freq, detuner(n));
         // We must wrap this here because it is passed into sawblep below which
@@ -586,12 +483,7 @@ function genHannWindow(length) {
 
 class PhaseVocoderProcessor extends OLAProcessor {
   static get parameterDescriptors() {
-    return [
-      {
-        name: 'pitchFactor',
-        defaultValue: 1.0,
-      },
-    ];
+    return [{ name: 'pitchFactor', defaultValue: 1.0 }];
   }
 
   constructor(options) {
@@ -599,9 +491,12 @@ class PhaseVocoderProcessor extends OLAProcessor {
       blockSize: BUFFERED_BLOCK_SIZE,
     };
     super(options);
-    this.timeCursor = 0;
     this.fftSize = this.blockSize;
     this.invfftSize = 1 / this.fftSize;
+  }
+
+  initialize(_options) {
+    this.timeCursor = 0;
     this.hannWindow = genHannWindow(this.fftSize);
     // prepare FFT and pre-allocate buffers
     this.fft = new FFT(this.fftSize);
@@ -732,9 +627,8 @@ class PhaseVocoderProcessor extends OLAProcessor {
 registerProcessor('phase-vocoder-processor', PhaseVocoderProcessor);
 
 // Adapted from https://www.musicdsp.org/en/latest/Effects/221-band-limited-pwm-generator.html
-class PulseOscillatorProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
+class PulseOscillatorProcessor extends makeReusable(AudioWorkletProcessor) {
+  initialize() {
     this.phi = -PI; // phase
     this.Y0 = 0; // feedback memories
     this.Y1 = 0;
@@ -746,20 +640,7 @@ class PulseOscillatorProcessor extends AudioWorkletProcessor {
 
   static get parameterDescriptors() {
     return [
-      {
-        name: 'begin',
-        defaultValue: 0,
-        max: Number.POSITIVE_INFINITY,
-        min: 0,
-      },
-
-      {
-        name: 'end',
-        defaultValue: 0,
-        max: Number.POSITIVE_INFINITY,
-        min: 0,
-      },
-
+      ...super.parameterDescriptors,
       {
         name: 'frequency',
         defaultValue: 440,
@@ -780,20 +661,10 @@ class PulseOscillatorProcessor extends AudioWorkletProcessor {
     ];
   }
 
-  process(inputs, outputs, params) {
-    if (this.disconnected) {
-      return false;
-    }
-    if (currentTime <= params.begin[0]) {
-      return true;
-    }
-    if (currentTime >= params.end[0]) {
-      return false;
-    }
+  processActive(inputs, outputs, params) {
     const output = outputs[0];
     let env = 1,
       dphi;
-
     for (let i = 0; i < (output[0].length ?? 0); i++) {
       const pw = (1 - clamp(pv(params.pulsewidth, i), -0.99, 0.99)) * PI;
       const detune = pv(params.detune, i);
@@ -876,28 +747,23 @@ function getByteBeatFunc(codetext) {
   return new Function(...mathParams, 't', `return 0,\n${codetext || 0};`).bind(globalThis, ...byteBeatHelperFuncs);
 }
 
-class ByteBeatProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.port.onmessage = (event) => {
-      let { codeText } = event.data;
-      const { byteBeatStartTime } = event.data;
-      if (byteBeatStartTime != null) {
-        this.t = 0;
-        this.initialOffset = Math.floor(byteBeatStartTime);
-      }
-
-      //Optimization pulled from dollchan.net: https://github.com/Chasyxx/EnBeat_NEW, it seemed important
-      //Optimize code like eval(unescape(escape`XXXX`.replace(/u(..)/g,"$1%")))
-      codeText = codeText
-        .trim()
-        .replace(
-          /^eval\(unescape\(escape(?:`|\('|\("|\(`)(.*?)(?:`|'\)|"\)|`\)).replace\(\/u\(\.\.\)\/g,["'`]\$1%["'`]\)\)\)$/,
-          (match, m1) => unescape(escape(m1).replace(/u(..)/g, '$1%')),
-        );
-
-      this.func = getByteBeatFunc(codeText);
-    };
+class ByteBeatProcessor extends makeReusable(AudioWorkletProcessor) {
+  initialize(options) {
+    let codeText = options?.codeText;
+    const byteBeatStartTime = options?.byteBeatStartTime;
+    if (byteBeatStartTime != null) {
+      this.t = 0;
+      this.initialOffset = Math.floor(byteBeatStartTime);
+    }
+    //Optimization pulled from dollchan.net: https://github.com/Chasyxx/EnBeat_NEW, it seemed important
+    //Optimize code like eval(unescape(escape`XXXX`.replace(/u(..)/g,"$1%")))
+    codeText = codeText
+      .trim()
+      .replace(
+        /^eval\(unescape\(escape(?:`|\('|\("|\(`)(.*?)(?:`|'\)|"\)|`\)).replace\(\/u\(\.\.\)\/g,["'`]\$1%["'`]\)\)\)$/,
+        (match, m1) => unescape(escape(m1).replace(/u(..)/g, '$1%')),
+      );
+    this.func = getByteBeatFunc(codeText);
     this.initialOffset = 0;
     this.t = null;
     this.func = null;
@@ -905,12 +771,7 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
 
   static get parameterDescriptors() {
     return [
-      {
-        name: 'begin',
-        defaultValue: 0,
-        max: Number.POSITIVE_INFINITY,
-        min: 0,
-      },
+      ...super.parameterDescriptors,
       {
         name: 'frequency',
         defaultValue: 440,
@@ -922,25 +783,10 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
         min: Number.NEGATIVE_INFINITY,
         max: Number.POSITIVE_INFINITY,
       },
-      {
-        name: 'end',
-        defaultValue: 0,
-        max: Number.POSITIVE_INFINITY,
-        min: 0,
-      },
     ];
   }
 
-  process(inputs, outputs, params) {
-    if (this.disconnected) {
-      return false;
-    }
-    if (currentTime <= params.begin[0]) {
-      return true;
-    }
-    if (currentTime >= params.end[0]) {
-      return false;
-    }
+  processActive(inputs, outputs, params) {
     if (this.t == null) {
       this.t = params.begin[0] * sampleRate;
     }
@@ -966,11 +812,9 @@ class ByteBeatProcessor extends AudioWorkletProcessor {
 
 registerProcessor('byte-beat-processor', ByteBeatProcessor);
 
-class EnvelopeProcessor extends AudioWorkletProcessor {
+class EnvelopeProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
     return [
-      { name: 'begin', defaultValue: 0 },
-      { name: 'end', defaultValue: 0 },
       { name: 'attack', defaultValue: 0.005, minValue: 0 },
       { name: 'decay', defaultValue: 0.14, minValue: 0 },
       { name: 'sustain', defaultValue: 0, minValue: 0, maxValue: 1 },
@@ -1130,34 +974,21 @@ function brownian(x, oct = 4) {
 }
 
 const tablesCache = {};
-class WavetableOscillatorProcessor extends AudioWorkletProcessor {
+class WavetableOscillatorProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
     return [
-      { name: 'begin', defaultValue: 0, min: 0, max: Number.POSITIVE_INFINITY },
-      { name: 'end', defaultValue: 0, min: 0, max: Number.POSITIVE_INFINITY },
+      ...super.parameterDescriptors,
       { name: 'frequency', defaultValue: 440, min: Number.EPSILON },
       { name: 'detune', defaultValue: 0 },
       { name: 'freqspread', defaultValue: 0.18, min: 0 },
       { name: 'position', defaultValue: 0, min: 0, max: 1 },
       { name: 'warp', defaultValue: 0, min: 0, max: 1 },
       { name: 'warpMode', defaultValue: 0 },
-      { name: 'voices', defaultValue: 1, min: 1, automationRate: 'k-rate' },
       { name: 'panspread', defaultValue: 0.7, min: 0, max: 1 },
       { name: 'phaserand', defaultValue: 0, min: 0, max: 1 },
     ];
   }
 
-  constructor(options) {
-    super(options);
-    this.isAlive = true; // used internally to prevent multiple death messages
-    this.port.onmessage = (e) => {
-      const { type, payload } = e.data || {};
-      if (type === 'initialize') {
-        this.initialize(payload);
-      }
-    };
-    this.initialize();
-  }
   initialize(options) {
     this.table = null;
     this.frameLen = null;
@@ -1172,6 +1003,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       this.table = tablesCache[key];
       this.numFrames = this.table.length;
     }
+    this.voices = options?.voices ?? 1;
   }
 
   _mirror(x) {
@@ -1316,19 +1148,7 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
     return a + (b - a) * frac;
   }
 
-  process(_inputs, outputs, parameters) {
-    if (currentTime >= parameters.end[0] + 0.5) {
-      // Outside of grace period - should terminate
-      if (this.isAlive) {
-        this.port.postMessage({ type: 'died' });
-        this.isAlive = false;
-      }
-      return false;
-    }
-    if (currentTime >= parameters.end[0] || currentTime <= parameters.begin[0]) {
-      // Inside of grace period or not yet started
-      return true;
-    }
+  processActive(_inputs, outputs, parameters) {
     const outL = outputs[0][0];
     const outR = outputs[0][1] || outputs[0][0];
     if (!this.table) {
@@ -1336,7 +1156,6 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       if (outR !== outL) outR.set(outL);
       return true;
     }
-    const voices = parameters.voices[0]; // k-rate
     for (let i = 0; i < outL.length; i++) {
       const detune = pv(parameters.detune, i);
       const freqspread = pv(parameters.freqspread, i);
@@ -1347,14 +1166,14 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
       const warpAmount = clamp(pv(parameters.warp, i), 0, 1);
       const warpMode = pv(parameters.warpMode, i);
       const phaseRand = clamp(pv(parameters.phaserand, i), 0, 1);
-      const panspread = voices > 1 ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
+      const panspread = this.voices > 1 ? clamp(pv(parameters.panspread, i), 0, 1) : 0;
       const gain1 = Math.sqrt(0.5 - 0.5 * panspread);
       const gain2 = Math.sqrt(0.5 + 0.5 * panspread);
       let f = pv(parameters.frequency, i);
       f = applySemitoneDetuneToFrequency(f, detune / 100); // overall detune
-      const normalizer = 1 / Math.sqrt(voices);
-      const detuner = getDetuner(voices, freqspread);
-      for (let n = 0; n < voices; n++) {
+      const normalizer = 1 / Math.sqrt(this.voices);
+      const detuner = getDetuner(this.voices, freqspread);
+      for (let n = 0; n < this.voices; n++) {
         const isOdd = (n & 1) == 1;
         let gainL = gain1;
         let gainR = gain2;

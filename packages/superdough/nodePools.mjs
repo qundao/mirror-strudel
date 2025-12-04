@@ -57,7 +57,7 @@ export const markWorkletAsDead = (worklet) => (worklet[IS_WORKLET_DEAD] = true);
 
 // Attempt to get node from the pool. If this fails, fall back
 // to building it with the factory
-export const getNodeFromPool = (key, factory) => {
+export const getNodeFromPool = (key, factory, params = {}) => {
   const pool = nodePools.get(key) ?? [];
   let node;
   while (pool.length) {
@@ -69,5 +69,14 @@ export const getNodeFromPool = (key, factory) => {
     node = factory();
   }
   node[POOL_KEY] = key;
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined) {
+      if (node instanceof AudioWorkletNode) {
+        node.parameters.get(key).value = value;
+      } else {
+        node.get(key).value = value;
+      }
+    }
+  });
   return node;
 };

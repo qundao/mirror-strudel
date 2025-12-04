@@ -1,22 +1,23 @@
 'use strict';
 
+import { makeReusable } from './worklets-common.mjs';
+
 // sourced from https://github.com/olvb/phaze/tree/master?tab=readme-ov-file
 const WEBAUDIO_BLOCK_SIZE = 128;
 
 /** Overlap-Add Node */
-class OLAProcessor extends AudioWorkletProcessor {
+class OLAProcessor extends makeReusable(AudioWorkletProcessor) {
   constructor(options) {
     super(options);
-    this.started = false;
     this.nbInputs = options.numberOfInputs;
     this.nbOutputs = options.numberOfOutputs;
-
     this.blockSize = options.processorOptions.blockSize;
     // TODO for now, the only support hop size is the size of a web audio block
     this.hopSize = WEBAUDIO_BLOCK_SIZE;
-
     this.nbOverlaps = this.blockSize / this.hopSize;
+  }
 
+  initialize() {
     // pre-allocate input buffers (will be reallocated if needed)
     this.inputBuffers = new Array(this.nbInputs);
     this.inputBuffersHead = new Array(this.nbInputs);
@@ -54,7 +55,6 @@ class OLAProcessor extends AudioWorkletProcessor {
 
   allocateInputChannels(inputIndex, nbChannels) {
     // allocate input buffers
-
     this.inputBuffers[inputIndex] = new Array(nbChannels);
     for (let i = 0; i < nbChannels; i++) {
       this.inputBuffers[inputIndex][i] = new Float32Array(this.blockSize + WEBAUDIO_BLOCK_SIZE);
@@ -157,15 +157,8 @@ class OLAProcessor extends AudioWorkletProcessor {
     }
   }
 
-  process(inputs, outputs, params) {
-    const input = inputs[0];
-    const hasInput = !(input[0] === undefined);
-    if (this.started && !hasInput) {
-      return false;
-    }
-    this.started = hasInput;
+  processActive(inputs, outputs, params) {
     this.reallocateChannelsIfNeeded(inputs, outputs);
-
     this.readInputs(inputs);
     this.shiftInputBuffers();
     this.prepareInputBuffersToSend();
@@ -173,7 +166,6 @@ class OLAProcessor extends AudioWorkletProcessor {
     this.handleOutputBuffersToRetrieve();
     this.writeOutputs(outputs);
     this.shiftOutputBuffers();
-
     return true;
   }
 

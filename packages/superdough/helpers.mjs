@@ -1,7 +1,7 @@
 import { getAudioContext } from './audioContext.mjs';
 import { logger } from './logger.mjs';
 import { getNoiseBuffer } from './noise.mjs';
-import { getNodeFromPool } from './nodePools.mjs';
+import { getNodeFromPool, markWorkletAsDead } from './nodePools.mjs';
 import { clamp, nanFallback, midiToFreq, noteToMidi } from './util.mjs';
 
 export const noises = ['pink', 'white', 'brown', 'crackle'];
@@ -34,6 +34,16 @@ export function getWorklet(ac, processor, params, config) {
       node.parameters.get(key).value = value;
     }
   });
+  return node;
+}
+
+export function getPooledWorklet(ac, processor, params, constructorOptions, reInitOptions) {
+  const node = getNodeFromPool(processor, () => new AudioWorkletNode(ac, processor, constructorOptions), params);
+  node.port.postMessage({ type: 'initialize', payload: reInitOptions });
+  node.port.onmessage = (e) => {
+    if (e.data.type === 'died') markWorkletAsDead(node);
+    node.port.onmessage = null;
+  };
   return node;
 }
 
@@ -125,7 +135,7 @@ export function getLfo(audioContext, begin, end, properties = {}) {
     ...props,
   };
 
-  return getWorklet(audioContext, 'lfo-processor', lfoprops);
+  return getPooledWorklet(audioContext, 'lfo-processor', lfoprops);
 }
 
 export function getCompressor(ac, threshold, ratio, knee, attack, release) {
@@ -218,7 +228,7 @@ export function createFilter(context, start, end, params, cps, cycle) {
 
   let frequencyParam, filter;
   if (model === 'ladder') {
-    filter = getWorklet(context, 'ladder-processor', { frequency, q, drive });
+    filter = getPooledWorklet(context, 'ladder-processor', { frequency, q, drive });
     frequencyParam = filter.parameters.get('frequency');
   } else {
     const factory = () => context.createBiquadFilter();

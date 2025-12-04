@@ -9,7 +9,15 @@ import './reverb.mjs';
 import './vowel.mjs';
 import { nanFallback, _mod, cycleToSeconds, pickAndRename } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
-import { createFilter, effectSend, gainNode, getCompressor, getDistortion, getLfo, getWorklet } from './helpers.mjs';
+import {
+  createFilter,
+  effectSend,
+  gainNode,
+  getCompressor,
+  getDistortion,
+  getLfo,
+  getPooledWorklet,
+} from './helpers.mjs';
 import { getNodeFromPool, isPoolable, releaseNodeToPool } from './nodePools.mjs';
 import { map } from 'nanostores';
 import { logger } from './logger.mjs';
@@ -531,7 +539,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
   const chain = []; // audio nodes that will be connected to each other sequentially
   chain.push(sourceNode);
-  stretch !== undefined && chain.push(getWorklet(ac, 'phase-vocoder-processor', { pitchFactor: stretch }));
+  stretch !== undefined && chain.push(getPooledWorklet(ac, 'phase-vocoder-processor', { pitchFactor: stretch }));
 
   // gain stage
   chain.push(gainNode(gain));
@@ -644,9 +652,9 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
 
   // effects
-  coarse !== undefined && chain.push(getWorklet(ac, 'coarse-processor', { coarse }));
-  crush !== undefined && chain.push(getWorklet(ac, 'crush-processor', { crush }));
-  shape !== undefined && chain.push(getWorklet(ac, 'shape-processor', { shape, postgain: shapevol }));
+  coarse !== undefined && chain.push(getPooledWorklet(ac, 'coarse-processor', { coarse }));
+  crush !== undefined && chain.push(getPooledWorklet(ac, 'crush-processor', { crush }));
+  shape !== undefined && chain.push(getPooledWorklet(ac, 'shape-processor', { shape, postgain: shapevol }));
   distort !== undefined && chain.push(getDistortion(distort, distortvol, distorttype));
 
   if (tremolosync != null) {

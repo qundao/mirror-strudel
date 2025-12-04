@@ -7,10 +7,11 @@ import {
   getFrequencyFromValue,
   getParamADSR,
   getPitchEnvelope,
+  getPooledWorklet,
   getVibratoOscillator,
   webAudioTimeout,
 } from './helpers.mjs';
-import { getNodeFromPool, markWorkletAsDead, releaseNodeToPool } from './nodePools.mjs';
+import { releaseNodeToPool } from './nodePools.mjs';
 import { logger } from './logger.mjs';
 
 export const Warpmode = Object.freeze({
@@ -224,6 +225,7 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   }
   const endWithRelease = holdEnd + release;
   const envEnd = endWithRelease + 0.01;
+  payload.voices = Math.max(value.unison ?? 1, 1);
   const params = {
     begin: t,
     end: envEnd,
@@ -232,22 +234,10 @@ export async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
     position: value.wt,
     warp: value.warp,
     warpMode: warpmode,
-    voices: Math.max(value.unison ?? 1, 1),
     panspread: value.spread,
     phaserand: (value.wtphaserand ?? value.unison > 1) ? 1 : 0,
   };
-  const factory = () => new AudioWorkletNode(ac, 'wavetable-oscillator-processor', { outputChannelCount: [2] });
-  const source = getNodeFromPool('wavetable', factory);
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) {
-      source.parameters.get(key).value = value;
-    }
-  });
-  source.port.postMessage({ type: 'initialize', payload });
-  source.port.onmessage = (e) => {
-    if (e.data.type === 'died') markWorkletAsDead(source);
-    source.port.onmessage = null;
-  };
+  const source = getPooledWorklet(ac, 'wavetable-oscillator-processor', params, { outputChannelCount: [2] }, payload);
   if (ac.currentTime > t) {
     logger(`[wavetable] still loading sound "${s}:${n}"`, 'highlight');
     return;
