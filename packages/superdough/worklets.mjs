@@ -196,10 +196,7 @@ registerProcessor('coarse-processor', CoarseProcessor);
 
 class CrushProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
-    return [
-      ...super.parameterDescriptors,
-      { name: 'crush', defaultValue: 0 },
-    ];
+    return [...super.parameterDescriptors, { name: 'crush', defaultValue: 0 }];
   }
 
   processActive(inputs, outputs, parameters) {
@@ -221,11 +218,7 @@ registerProcessor('crush-processor', CrushProcessor);
 
 class ShapeProcessor extends makeReusable(AudioWorkletProcessor) {
   static get parameterDescriptors() {
-    return [
-      ...super.parameterDescriptors,
-      { name: 'shape', defaultValue: 0 },
-      { name: 'postgain', defaultValue: 1 },
-    ];
+    return [...super.parameterDescriptors, { name: 'shape', defaultValue: 0 }, { name: 'postgain', defaultValue: 1 }];
   }
 
   processActive(inputs, outputs, parameters) {

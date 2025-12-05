@@ -12,26 +12,6 @@ const MAX_POOL_SIZE = 64;
 
 export const isPoolable = (node) => !!node[POOL_KEY];
 
-const getParams = (node) => {
-  const params = new Set();
-  node.parameters?.forEach((param) => params.add(param));
-  const visited = new Set(); // prioritize deepest definition
-  let proto = node;
-  // Move up the prototype chain
-  while (proto !== Object.prototype) {
-    for (const key of Object.getOwnPropertyNames(proto)) {
-      if (visited.has(key)) continue;
-      visited.add(key);
-      const value = node[key];
-      if (value instanceof AudioParam) {
-        params.add(value);
-      }
-    }
-    proto = Object.getPrototypeOf(proto);
-  }
-  return params;
-};
-
 export const releaseNodeToPool = (node) => {
   node.disconnect();
   if (node instanceof AudioScheduledSourceNode) {
@@ -44,8 +24,6 @@ export const releaseNodeToPool = (node) => {
   }
   const key = node[POOL_KEY];
   if (key == null) return;
-  const now = node.context?.currentTime ?? 0;
-  getParams(node).forEach((param) => param.cancelScheduledValues(now));
   const pool = nodePools.get(key) ?? [];
   if (pool.length < MAX_POOL_SIZE) {
     pool.push(new WeakRef(node));
@@ -69,14 +47,20 @@ export const getNodeFromPool = (key, factory, params = {}) => {
     node = factory();
   }
   node[POOL_KEY] = key;
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) {
-      if (node instanceof AudioWorkletNode) {
-        node.parameters.get(key).value = value;
-      } else {
-        node.get(key).value = value;
-      }
+  const now = node.context?.currentTime ?? 0;
+  const paramHolder = node instanceof AudioWorkletNode ? node.parameters : node;
+  const nodeParams = {};
+  Object.getOwnPropertyNames(paramHolder).forEach((name) => {
+    if (paramHolder[name] instanceof AudioParam) {
+      nodeParams[name] = paramHolder[name];
     }
+  });
+  Object.entries(nodeParams).forEach(([k, param]) => {
+    param.cancelScheduledValues(now);
+    // Set values from `params` or restore defaults
+    const target = params[k] !== undefined ? params[k] : param.defaultValue;
+    console.log(k, param, target, key);
+    param.setValueAtTime(target, now);
   });
   return node;
 };
