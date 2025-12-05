@@ -566,8 +566,9 @@ export const getDistortionAlgorithm = (algo) => {
   return distortionAlgorithms[name];
 };
 
-export const getDistortion = (distort, postgain, algorithm) => {
-  return getWorklet(getAudioContext(), 'distort-processor', { distort, postgain }, { processorOptions: { algorithm } });
+export const getDistortion = (fullParams) => {
+  const { algorithm, ...params } = fullParams;
+  return getPooledWorklet(getAudioContext(), 'distort-processor', params, {}, { algorithm });
 };
 
 export const getFrequencyFromValue = (value, defaultNote = 36) => {

@@ -41,7 +41,6 @@ export const makeReusable = (Base) =>
           this.handlePortMessage(type, payload, e);
         }
       };
-      this.initialize();
     }
 
     initialize(_options) {

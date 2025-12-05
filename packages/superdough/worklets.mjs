@@ -476,7 +476,7 @@ function genHannWindow(length) {
 
 class PhaseVocoderProcessor extends OLAProcessor {
   static get parameterDescriptors() {
-    return [{ name: 'pitchFactor', defaultValue: 1.0 }];
+    return [...super.parameterDescriptors, { name: 'pitchFactor', defaultValue: 1.0 }];
   }
 
   constructor(options) {
@@ -488,7 +488,8 @@ class PhaseVocoderProcessor extends OLAProcessor {
     this.invfftSize = 1 / this.fftSize;
   }
 
-  initialize(_options) {
+  initialize(options) {
+    super.initialize(options);
     this.timeCursor = 0;
     this.hannWindow = genHannWindow(this.fftSize);
     // prepare FFT and pre-allocate buffers

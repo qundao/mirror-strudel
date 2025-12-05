@@ -539,7 +539,10 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
   const chain = []; // audio nodes that will be connected to each other sequentially
   chain.push(sourceNode);
-  stretch !== undefined && chain.push(getPooledWorklet(ac, 'phase-vocoder-processor', { pitchFactor: stretch }));
+  stretch !== undefined &&
+    chain.push(
+      getPooledWorklet(ac, 'phase-vocoder-processor', { pitchFactor: stretch, begin: t, end: endWithRelease }),
+    );
 
   // gain stage
   chain.push(gainNode(gain));
@@ -652,10 +655,13 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
 
   // effects
-  coarse !== undefined && chain.push(getPooledWorklet(ac, 'coarse-processor', { coarse }));
-  crush !== undefined && chain.push(getPooledWorklet(ac, 'crush-processor', { crush }));
-  shape !== undefined && chain.push(getPooledWorklet(ac, 'shape-processor', { shape, postgain: shapevol }));
-  distort !== undefined && chain.push(getDistortion(distort, distortvol, distorttype));
+  coarse !== undefined &&
+    chain.push(getPooledWorklet(ac, 'coarse-processor', { coarse, begin: t, end: endWithRelease }));
+  crush !== undefined && chain.push(getPooledWorklet(ac, 'crush-processor', { crush, begin: t, end: endWithRelease }));
+  shape !== undefined &&
+    chain.push(getPooledWorklet(ac, 'shape-processor', { shape, postgain: shapevol, begin: t, end: endWithRelease }));
+  distort !== undefined &&
+    chain.push(getDistortion({ distort, postgain: distortvol, algorithm: distorttype, begin: t, end: endWithRelease }));
 
   if (tremolosync != null) {
     tremolo = cps * tremolosync;
