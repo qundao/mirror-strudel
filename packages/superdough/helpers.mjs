@@ -147,11 +147,10 @@ export function getCompressor(ac, threshold, ratio, knee, attack, release) {
     attack: attack ?? 0.005,
     release: release ?? 0.05,
   };
-  node.threshold.value = options.threshold;
-  node.ratio.value = options.ratio;
-  node.knee.value = options.knee;
-  node.attack.value = options.attack;
-  node.release.value = options.release;
+  const now = ac.currentTime;
+  Object.entries(options).forEach(([key, value]) => {
+    node[key].setValueAtTime(value, now);
+  });
   return node;
 }
 
@@ -234,8 +233,10 @@ export function createFilter(context, start, end, params, cps, cycle) {
     const factory = () => context.createBiquadFilter();
     filter = getNodeFromPool('filter', factory);
     filter.type = type;
-    filter.Q.value = q;
-    filter.frequency.value = frequency;
+    const now = context.currentTime;
+    Object.entries({ Q: q, frequency }).forEach(([key, value]) => {
+      filter[key].setValueAtTime(value, now);
+    });
     frequencyParam = filter.frequency;
   }
   const envelopeValues = [params.attack, params.decay, params.sustain, params.release];

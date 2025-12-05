@@ -47,7 +47,6 @@ export const getNodeFromPool = (key, factory, params = {}) => {
     node = factory();
   }
   node[POOL_KEY] = key;
-  const now = node.context?.currentTime ?? 0;
   const paramMap = new Map();
   if (node instanceof AudioWorkletNode) {
     for (const [name, param] of node.parameters.entries()) {
@@ -61,6 +60,7 @@ export const getNodeFromPool = (key, factory, params = {}) => {
       }
     }
   }
+  const now = node.context?.currentTime ?? 0;
   paramMap.forEach((param, name) => {
     param.cancelScheduledValues(now);
     // Set values from `params` or restore defaults
