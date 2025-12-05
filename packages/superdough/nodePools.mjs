@@ -48,18 +48,23 @@ export const getNodeFromPool = (key, factory, params = {}) => {
   }
   node[POOL_KEY] = key;
   const now = node.context?.currentTime ?? 0;
-  const paramHolder = node instanceof AudioWorkletNode ? node.parameters : node;
-  const nodeParams = {};
-  Object.getOwnPropertyNames(paramHolder).forEach((name) => {
-    if (paramHolder[name] instanceof AudioParam) {
-      nodeParams[name] = paramHolder[name];
+  const paramMap = new Map();
+  if (node instanceof AudioWorkletNode) {
+    for (const [name, param] of node.parameters.entries()) {
+      paramMap.set(name, param);
     }
-  });
-  Object.entries(nodeParams).forEach(([k, param]) => {
+  } else {
+    for (const name of Object.getOwnPropertyNames(node)) {
+      const value = node[name];
+      if (value instanceof AudioParam) {
+        paramMap.set(name, value);
+      }
+    }
+  }
+  paramMap.forEach((param, name) => {
     param.cancelScheduledValues(now);
     // Set values from `params` or restore defaults
-    const target = params[k] !== undefined ? params[k] : param.defaultValue;
-    console.log(k, param, target, key);
+    const target = params[name] !== undefined ? params[name] : param.defaultValue;
     param.setValueAtTime(target, now);
   });
   return node;
