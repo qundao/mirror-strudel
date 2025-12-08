@@ -1,4 +1,5 @@
 import { getAudioContext } from './audioContext.mjs';
+import { getAudioGraph, onceEnded, releaseAudioNode } from './audioGraph.mjs';
 import { logger } from './logger.mjs';
 import { getNoiseBuffer } from './noise.mjs';
 import { clamp, nanFallback, midiToFreq, noteToMidi } from './util.mjs';
@@ -269,30 +270,20 @@ let wetfade = (d) => (d < 0.5 ? 1 : 1 - (d - 0.5) / 0.5);
 // still not too sure about how this could be used more generally...
 export function drywet(dry, wet, wetAmount = 0) {
   const ac = getAudioContext();
+  const ag = getAudioGraph();
   if (!wetAmount) {
     return dry;
   }
   let dry_gain = ac.createGain();
   let wet_gain = ac.createGain();
-  dry.connect(dry_gain);
-  wet.connect(wet_gain);
+  ag.connect(dry, dry_gain);
+  ag.connect(wet, wet_gain);
   dry_gain.gain.value = wetfade(wetAmount);
   wet_gain.gain.value = wetfade(1 - wetAmount);
-  let mix = ac.createGain();
-  dry_gain.connect(mix);
-  wet_gain.connect(mix);
-  return {
-    node: mix,
-    teardown: () => {
-      releaseAudioNode(dry_gain);
-      releaseAudioNode(wet_gain);
-      // it is not the responsability of drywet
-      // to call `releaseAudioNode` on
-      // the 2 external args dry and wet
-      dry.disconnect(dry_gain);
-      wet.disconnect(wet_gain);
-    },
-  };
+  const mix = ac.createGain();
+  ag.connect(dry_gain, mix);
+  ag.connect(wet_gain, mix);
+  return { node: mix };
 }
 
 let curves = ['linear', 'exponential'];
@@ -320,17 +311,14 @@ export function getVibratoOscillator(param, value, t) {
   const { vibmod = 0.5, vib } = value;
   let vibratoOscillator;
   if (vib > 0) {
+    const ag = getAudioGraph();
     vibratoOscillator = getAudioContext().createOscillator();
     vibratoOscillator.frequency.value = vib;
     const gain = getAudioContext().createGain();
     // Vibmod is the amount of vibrato, in semitones
     gain.gain.value = vibmod * 100;
-    vibratoOscillator.connect(gain);
-    gain.connect(param);
-    onceEnded(vibratoOscillator, () => {
-      releaseAudioNode(gain);
-      releaseAudioNode(vibratoOscillator);
-    });
+    ag.connect(vibratoOscillator, gain);
+    ag.connect(gain, param);
     vibratoOscillator.start(t);
     return vibratoOscillator;
   }
@@ -386,7 +374,7 @@ const fm = (frequencyparam, harmonicityRatio, wave = 'sine') => {
 
 export function applyFM(param, value, begin) {
   const ac = getAudioContext();
-  const toStop = []; // fm oscillators we will expose `stop` for
+  const ag = getAudioGraph();
   const fms = {};
   // Matrix
   for (let i = 1; i <= 8; i++) {
@@ -413,8 +401,6 @@ export function applyFM(param, value, begin) {
         if (!fms[idx]) {
           const idxS = idx === 1 ? '' : idx;
           const { osc, freq } = fm(param, value[`fmh${idxS}`] ?? 1, value[`fmwave${idxS}`] ?? 'sine');
-          toStop.push(osc);
-          const toCleanup = [osc]; // nodes we want to cleanup after oscillator `stop`
           const adsr = ['attack', 'decay', 'sustain', 'release'].map((s) => value[`fm${s}${idxS}`]);
           let output = osc;
           if (adsr.some((v) => v !== undefined)) {
@@ -434,15 +420,13 @@ export function applyFM(param, value, begin) {
               holdEnd,
               fmEnvelopeType === 'exp' ? 'exponential' : 'linear',
             );
-            toCleanup.push(envGain);
-            output = osc.connect(envGain);
+            output = ag.connect(osc, envGain);
           }
-          fms[idx] = { input: osc.frequency, output, freq, osc, toCleanup };
+          fms[idx] = { input: osc.frequency, output, freq };
         }
-        const { input, output, freq, osc, toCleanup } = fms[idx];
+        const { input, output, freq } = fms[idx];
         const g = gainNode(amt * freq);
-        io.push(isMod ? output.connect(g) : input);
-        cleanupOnEnd(osc, [...toCleanup, g]);
+        io.push(isMod ? ag.connect(output, g) : input);
       }
       if (!io[1]) {
         logger(
@@ -451,12 +435,9 @@ export function applyFM(param, value, begin) {
         );
         continue;
       }
-      io[0].connect(io[1]);
+      ag.connect(io[0], io[1]);
     }
   }
-  return {
-    stop: (t) => toStop.forEach((m) => m?.stop(t)),
-  };
 }
 
 // Saturation curves
@@ -567,62 +548,4 @@ export const getFrequencyFromValue = (value, defaultNote = 36) => {
   }
   freq *= Math.pow(2, octave);
   return Number(freq);
-};
-
-// This helper should be used instead of the `node.onended = callback` pattern
-// It adds a mechanism to help minimize gc retention
-export const onceEnded = (node, callback) => {
-  const onended = callback;
-  node.onended = function cleanup() {
-    onended && onended();
-    this.onended = null;
-  };
-};
-
-export const releaseAudioNode = (node) => {
-  if (node == null) return;
-
-  // check we received an AudioNode
-  if (!(node instanceof AudioNode)) {
-    throw new Error('releaseAudioNode can only release an AudioNode');
-  }
-
-  // https://developer.mozilla.org/en-US/docs/Web/API/AudioNode/disconnect
-  node.disconnect();
-
-  // make sure all AudioScheduledSourceNodes are in a stopped state
-  // https://developer.mozilla.org/en-US/docs/Web/API/AudioScheduledSourceNode
-  if (node instanceof AudioScheduledSourceNode) {
-    if (node.onended && node.onended.name !== 'cleanup') {
-      logger(
-        `[superdough] Deprecation warning: it seems your code path is setting 'node.onended = callback' instead of using the onceEnded helper`,
-      );
-    }
-    try {
-      node.stop();
-    } catch (e) {
-      // At the stage, `start` was not called on the node
-      // but an `onended` callback releasing resources may exist
-      // and we want it to fire :
-      // - we force a start/stop cycle so that `onended` gets called
-      // - we `lock` the node so that no-one can start it
-      node.start(node.context.currentTime + 5); // will never happen
-      node.stop();
-    }
-  }
-
-  // https://www.w3.org/TR/webaudio-1.1/#AudioNode-actively-processing
-  // An AudioWorkletNode is actively processing when its AudioWorkletProcessor's [[callable process]]
-  // returns true and either its active source flag is true or
-  // any AudioNode connected to one of its inputs is actively processing.
-  if (node instanceof AudioWorkletNode) {
-    // while `end` is not native to the web audio API, it is common practice in superdough
-    // to use that param in the worklets to trigger returning false from the processor
-    node.parameters.get('end')?.setValueAtTime(0, 0);
-  }
-};
-
-// Once the `anchor` node has ended, release all nodes in `toCleanup`
-export const cleanupOnEnd = (anchor, toCleanup) => {
-  onceEnded(anchor, () => toCleanup.forEach((n) => releaseAudioNode(n)));
 };

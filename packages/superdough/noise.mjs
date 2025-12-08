@@ -1,5 +1,6 @@
-import { drywet, onceEnded, releaseAudioNode } from './helpers.mjs';
 import { getAudioContext } from './audioContext.mjs';
+import { getAudioGraph, onceEnded, releaseAudioNode } from './audioGraph.mjs';
+import { drywet } from './helpers.mjs';
 
 let noiseCache = {};
 
@@ -63,14 +64,17 @@ export function getNoiseOscillator(type = 'white', t, density = 0.02) {
 }
 
 export function getNoiseMix(inputNode, wet, t) {
+  const ag = getAudioGraph();
   const noiseOscillator = getNoiseOscillator('pink', t);
-  const noiseMix = drywet(inputNode, noiseOscillator.node, wet);
+  const { subGraph, output } = ag.asSubGraph(() => {
+    return drywet(inputNode, noiseOscillator.node, wet);
+  });
   onceEnded(noiseOscillator.node, () => {
     releaseAudioNode(noiseOscillator.node);
   });
   return {
-    node: noiseMix.node,
+    node: output.node,
     stop: (time) => noiseOscillator?.stop(time),
-    teardown: noiseMix.teardown,
+    teardown: subGraph.release,
   };
 }

@@ -1,6 +1,7 @@
 import { clamp } from './util.mjs';
 import { registerSound, soundMap } from './superdough.mjs';
 import { getAudioContext } from './audioContext.mjs';
+import { getAudioGraph, onceEnded, releaseAudioNode } from './audioGraph.mjs';
 import {
   applyFM,
   gainNode,
@@ -12,8 +13,6 @@ import {
   getVibratoOscillator,
   getWorklet,
   noises,
-  onceEnded,
-  releaseAudioNode,
   webAudioTimeout,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
@@ -478,34 +477,25 @@ export function getOscillator(s, t, value, onended) {
   }
   // set frequency
   o.frequency.value = getFrequencyFromValue(value);
-
-  let vibratoOscillator = getVibratoOscillator(o.detune, value, t);
-
-  // pitch envelope
-  getPitchEnvelope(o.detune, value, t, t + duration);
-  const fmModulator = applyFM(o.frequency, value, t);
-
-  let noiseMix;
-  if (noise) {
-    noiseMix = getNoiseMix(o, noise, t);
-  }
-
-  onceEnded(o, () => {
-    noiseMix?.teardown();
-    releaseAudioNode(o);
-    releaseAudioNode(noiseMix?.node);
-    onended();
+  const ag = getAudioGraph();
+  const { subGraph, output } = ag.asSubGraph(() => {
+    getVibratoOscillator(o.detune, value, t);
+    // pitch envelope
+    getPitchEnvelope(o.detune, value, t, t + duration);
+    applyFM(o.frequency, value, t);
+    let noiseMix;
+    if (noise) {
+      noiseMix = getNoiseMix(o, noise, t);
+    }
+    return { node: noiseMix?.node || o };
   });
+
+  onceEnded(o, () => subGraph.release());
   o.start(t);
 
   return {
-    node: noiseMix?.node || o,
-    stop: (time) => {
-      fmModulator.stop(time);
-      vibratoOscillator?.stop(time);
-      noiseMix?.stop(time);
-      o.stop(time);
-    },
+    node: output.node,
+    stop: (time) => o.stop(time),
     triggerRelease: (time) => {
       // envGain?.stop(time);
     },

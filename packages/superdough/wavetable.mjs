@@ -1,3 +1,4 @@
+import { releaseAudioNode } from './audioGraph.mjs';
 import { getAudioContext, registerSound } from './index.mjs';
 import { getBaseURL, getCommonSampleInfo } from './util.mjs';
 import {
@@ -9,7 +10,6 @@ import {
   getPitchEnvelope,
   getVibratoOscillator,
   getWorklet,
-  releaseAudioNode,
   webAudioTimeout,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
