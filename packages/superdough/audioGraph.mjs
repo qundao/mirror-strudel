@@ -70,6 +70,17 @@ class Edge {
     this.to = new WeakRef(to);
     this.subGraphs = new Set();
   }
+  disconnect() {
+    const from = this.from.deref();
+    const to = this.to.deref();
+    from && to && from.disconnect(to);
+  }
+  release() {
+    const from = this.from.deref();
+    if (from instanceof AudioNode) {
+      releaseAudioNode(from);
+    }
+  }
 }
 
 let audioGraph;
@@ -112,23 +123,14 @@ class AudioGraph {
 
   // Disconnects all from-to connections (rather than naked `from.disconnect()`)
   disconnect() {
-    for (const edge of this.edges) {
-      const from = edge.from.deref();
-      const to = edge.to.deref();
-      from && to && from.disconnect(to);
-    }
-    this.edges = null;
+    this.edges.forEach((edge) => edge.disconnect());
+    this.edges = [];
   }
 
   // Release this entire graph (nodes will be fully disconnected, stopped, etc)
   release() {
-    for (const edge of this.edges) {
-      const from = edge.from.deref();
-      if (from instanceof AudioNode) {
-        releaseAudioNode(from);
-      }
-    }
-    this.edges = null;
+    this.edges.forEach((edge) => edge.release());
+    this.edges = [];
   }
 }
 
