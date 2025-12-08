@@ -74,7 +74,7 @@ class Edge {
 
 let audioGraph;
 class AudioGraph {
-  constructor() {
+  constructor(id) {
     this.id = id;
     this.activeSubGraphs = [];
     this.subGraphs = {};
@@ -134,7 +134,7 @@ class AudioGraph {
 
 export const getAudioGraph = () => {
   if (audioGraph === undefined) {
-    audioGraph = new AudioGraph(id = 0);
+    audioGraph = new AudioGraph(0);
   }
   return audioGraph;
 };
