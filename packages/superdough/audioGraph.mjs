@@ -110,9 +110,10 @@ class AudioGraph {
   // Introduces a context wherein all connections will be added to both this graph
   // and the subgraph and all edges will be tagged with the subgraph for tracking
   asSubGraph(fn) {
-    const subGraph = new AudioGraph(`${this.id}_${this.subGraphCounter}`);
+    const subGraphID = `${this.id}_${this.subGraphCounter}`;
     this.subGraphCounter++;
-    this.subGraphs[this.id] = subGraph;
+    const subGraph = new AudioGraph(subGraphID);
+    this.subGraphs[subGraphID] = subGraph;
     this.activeSubGraphs.push(subGraph);
     try {
       return { subGraph, output: fn() };
