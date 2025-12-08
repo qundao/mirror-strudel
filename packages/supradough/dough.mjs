@@ -1,11 +1,12 @@
 // this is dough, the superdough without dependencies
-// @ts-check
+// @ts-nocheck
 // @ts-ignore ignore next line because sampleRate is unknown
 const SAMPLE_RATE = typeof sampleRate !== 'undefined' ? sampleRate : 48000;
 const PI_DIV_SR = Math.PI / SAMPLE_RATE;
 const ISR = 1 / SAMPLE_RATE;
 
 let gainCurveFunc = (val) => Math.pow(val, 2);
+const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
 function applyGainCurve(val) {
   return gainCurveFunc(val);
@@ -151,7 +152,8 @@ export class TwoPoleFilter {
     resonance = Math.max(resonance, 0);
 
     cutoff = Math.min(cutoff, 20000);
-    const c = 2 * Math.sin(cutoff * PI_DIV_SR);
+    let c = 2 * Math.sin(cutoff * PI_DIV_SR);
+    c = clamp(c, 0, 1.14); // this line prevents instability TODO: test
 
     const r = Math.pow(0.5, (resonance + 0.125) / 0.125);
     const mrc = 1 - r * c;

@@ -35,6 +35,7 @@ export async function initHydra(options = {}) {
       hydra.synth.s0.init({ src: canvas });
     }
   }
+  return hydra;
 }
 
 export function clearHydra() {

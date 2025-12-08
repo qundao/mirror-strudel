@@ -3,7 +3,6 @@ import { registerSound, soundMap } from './superdough.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import {
   applyFM,
-  destroyAudioWorkletNode,
   gainNode,
   getADSRValues,
   getFrequencyFromValue,
@@ -13,11 +12,13 @@ import {
   getVibratoOscillator,
   getWorklet,
   noises,
+  releaseAudioNode,
   webAudioTimeout,
 } from './helpers.mjs';
+import { logger } from './logger.mjs';
 import { getNoiseMix, getNoiseOscillator } from './noise.mjs';
 
-const waveforms = ['triangle', 'square', 'sawtooth', 'sine'];
+const waveforms = ['triangle', 'square', 'sawtooth', 'sine', 'user'];
 const waveformAliases = [
   ['tri', 'triangle'],
   ['sqr', 'square'],
@@ -47,19 +48,17 @@ export function registerSynthSounds() {
           [0.001, 0.05, 0.6, 0.01],
         );
 
-        let sound = getOscillator(s, t, value);
-        let { node: o, stop, triggerRelease } = sound;
-
         // turn down
         const g = gainNode(0.3);
 
-        const { duration } = value;
-
-        o.onended = () => {
-          o.disconnect();
+        let sound = getOscillator(s, t, value, () => {
           g.disconnect();
           onended();
-        };
+        });
+
+        let { node: o, stop, triggerRelease } = sound;
+
+        const { duration } = value;
 
         const envGain = gainNode(1);
         let node = o.connect(g).connect(envGain);
@@ -193,8 +192,7 @@ export function registerSynthSounds() {
       let timeoutNode = webAudioTimeout(
         ac,
         () => {
-          destroyAudioWorkletNode(o);
-          envGain.disconnect();
+          releaseAudioNode(o);
           onended();
           fm?.stop();
           vibratoOscillator?.stop();
@@ -271,8 +269,7 @@ export function registerSynthSounds() {
       let timeoutNode = webAudioTimeout(
         ac,
         () => {
-          destroyAudioWorkletNode(o);
-          envGain.disconnect();
+          releaseAudioNode(o);
           onended();
         },
         begin,
@@ -345,9 +342,8 @@ export function registerSynthSounds() {
       let timeoutNode = webAudioTimeout(
         ac,
         () => {
-          destroyAudioWorkletNode(o);
-          destroyAudioWorkletNode(lfo);
-          envGain.disconnect();
+          releaseAudioNode(o);
+          releaseAudioNode(lfo);
           onended();
           fm?.stop();
           vibratoOscillator?.stop();
@@ -414,9 +410,13 @@ export function registerSynthSounds() {
   waveformAliases.forEach(([alias, actual]) => soundMap.set({ ...soundMap.get(), [alias]: soundMap.get()[actual] }));
 }
 
-export function waveformN(partials, type) {
-  const real = new Float32Array(partials + 1);
-  const imag = new Float32Array(partials + 1);
+const PI2 = 2 * Math.PI;
+export function waveformN(partials, phases, type) {
+  const isList = typeof partials === 'object';
+  partials = isList ? partials : new Float32Array(partials).fill(1);
+  const len = partials.length;
+  const real = new Float32Array(len + 1);
+  const imag = new Float32Array(len + 1);
   const ac = getAudioContext();
   const osc = ac.createOscillator();
 
@@ -424,20 +424,29 @@ export function waveformN(partials, type) {
     sawtooth: (n) => [0, -1 / n],
     square: (n) => [0, n % 2 === 0 ? 0 : 1 / n],
     triangle: (n) => [n % 2 === 0 ? 0 : 1 / (n * n), 0],
+    user: (_n) => [0, 1],
   };
 
   if (!terms[type]) {
     throw new Error(`unknown wave type ${type}`);
   }
 
-  real[0] = 0; // dc offset
-  imag[0] = 0;
-  let n = 1;
-  while (n <= partials) {
-    const [r, i] = terms[type](n);
-    real[n] = r;
-    imag[n] = i;
-    n++;
+  for (let n = 0; n < len; n++) {
+    const mag = partials[n];
+    const [r, i] = terms[type](n + 1); // we skip n === 0 as this is dc offset
+    const phase = phases?.[n] ?? 0;
+    // Scale by `partials`
+    let R = r * mag;
+    let I = i * mag;
+    // Apply rotation by the phase
+    if (phase !== 0) {
+      const c = Math.cos(PI2 * phase);
+      const s = Math.sin(PI2 * phase);
+      R = c * R - s * I;
+      I = s * R + c * I;
+    }
+    real[n + 1] = R;
+    imag[n + 1] = I;
   }
 
   const wave = ac.createPeriodicWave(real, imag);
@@ -446,21 +455,28 @@ export function waveformN(partials, type) {
 }
 
 // expects one of waveforms as s
-export function getOscillator(s, t, value) {
-  let { n: partials, duration, noise = 0 } = value;
+export function getOscillator(s, t, value, onended) {
+  const { duration, noise = 0 } = value;
+  const partials = value.partials ?? value.n;
   let o;
+  if (s === 'user' && !partials) {
+    logger(
+      `[superdough] Synth 'user' was selected, but partials not specified. Defaulting to triangle. Use pat.partials to setup custom waveform`,
+    );
+    s = 'triangle';
+  }
+  s = s === 'user' && !partials ? 'triangle' : s;
   // If no partials are given, use stock waveforms
-  if (!partials || s === 'sine') {
+  if (!partials || partials?.length === 0 || s === 'sine') {
     o = getAudioContext().createOscillator();
     o.type = s || 'triangle';
   }
   // generate custom waveform if partials are given
   else {
-    o = waveformN(partials, s);
+    o = waveformN(partials, value.phases, s);
   }
   // set frequency
   o.frequency.value = getFrequencyFromValue(value);
-  o.start(t);
 
   let vibratoOscillator = getVibratoOscillator(o.detune, value, t);
 
@@ -472,6 +488,13 @@ export function getOscillator(s, t, value) {
   if (noise) {
     noiseMix = getNoiseMix(o, noise, t);
   }
+
+  o.onended = () => {
+    noiseMix || o.disconnect();
+    noiseMix?.node.disconnect();
+    onended();
+  };
+  o.start(t);
 
   return {
     node: noiseMix?.node || o,

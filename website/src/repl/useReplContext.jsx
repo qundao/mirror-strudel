@@ -6,7 +6,7 @@ This program is free software: you can redistribute it and/or modify it under th
 
 import { code2hash, getPerformanceTimeSeconds, logger, silence } from '@strudel/core';
 import { getDrawContext } from '@strudel/draw';
-import { transpiler } from '@strudel/transpiler';
+import { evaluate, transpiler } from '@strudel/transpiler';
 import {
   getAudioContextCurrentTime,
   webaudioOutput,
@@ -64,11 +64,10 @@ async function getModule(name) {
 const initialCode = `// LOADING`;
 
 export function useReplContext() {
-  const { isSyncEnabled, audioEngineTarget } = useSettings();
+  const { isSyncEnabled, audioEngineTarget, prebakeScript, includePrebakeScriptInShare } = useSettings();
   const shouldUseWebaudio = audioEngineTarget !== audioEngineTargets.osc;
   const defaultOutput = shouldUseWebaudio ? webaudioOutput : superdirtOutput;
   const getTime = shouldUseWebaudio ? getAudioContextCurrentTime : getPerformanceTimeSeconds;
-
   const init = useCallback(() => {
     const drawTime = [-2, 2];
     const drawContext = getDrawContext();
@@ -85,7 +84,12 @@ export function useReplContext() {
       pattern: silence,
       drawTime,
       drawContext,
-      prebake: async () => Promise.all([modulesLoading, presets]),
+      prebake: async () =>
+        Promise.all([modulesLoading, presets]).then(() => {
+          if (prebakeScript?.length) {
+            return evaluate(prebakeScript ?? '');
+          }
+        }),
       onUpdateState: (state) => {
         setReplState({ ...state });
       },
@@ -229,7 +233,13 @@ export function useReplContext() {
     editorRef.current.repl.evaluate(code);
   };
 
-  const handleShare = async () => shareCode(replState.code);
+  const handleShare = async () => {
+    let code = replState.code;
+    if (includePrebakeScriptInShare) {
+      code = prebakeScript + '\n' + code;
+    }
+    shareCode(code);
+  };
   const context = {
     started,
     pending,

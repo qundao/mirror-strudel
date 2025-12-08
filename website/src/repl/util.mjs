@@ -1,11 +1,10 @@
-import { evalScope, hash2code, logger } from '@strudel/core';
+import { code2hash, evalScope, hash2code, logger } from '@strudel/core';
 import { settingPatterns } from '../settings.mjs';
 import { setVersionDefaults } from '@strudel/webaudio';
 import { getMetadata } from '../metadata_parser';
 import { isTauri } from '../tauri.mjs';
 import './Repl.css';
 import { createClient } from '@supabase/supabase-js';
-import { nanoid } from 'nanoid';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { $featuredPatterns /* , loadDBPatterns */ } from '@src/user_pattern_utils.mjs';
 import { decode as base64urldecode } from 'base64url-universal';
@@ -143,9 +142,8 @@ export function confirmDialog(msg) {
   });
 }
 
-let lastShared;
-
 //RIP due to SPAM
+// let lastShared;
 // export async function shareCode(codeToShare) {
 //   // const codeToShare = activeCode || code;
 //   if (lastShared === codeToShare) {
@@ -180,9 +178,10 @@ let lastShared;
 //   });
 // }
 
-export async function shareCode() {
+export async function shareCode(codeToShare) {
   try {
-    const shareUrl = window.location.href;
+    const hash = '#' + code2hash(codeToShare);
+    const shareUrl = window.location.origin + window.location.pathname + hash;
     if (isTauri()) {
       await writeText(shareUrl);
     } else {

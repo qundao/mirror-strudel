@@ -1,8 +1,10 @@
 import jsdoc from '../../doc.json';
 import { autocompletion } from '@codemirror/autocomplete';
 import { h } from './html';
-import { Scale } from '@tonaljs/tonal';
-import { soundMap } from 'superdough';
+//TODO: fix tonal scale import
+// import { Scale } from '@tonaljs/tonal';
+// import { soundMap } from '@strudel/webaudio';
+let soundMap = undefined;
 import { complex } from '@strudel/tonal';
 
 const escapeHtml = (str) => {
@@ -79,7 +81,9 @@ const hasExcludedTags = (doc) =>
   ['superdirtOnly', 'noAutocomplete'].some((tag) => doc.tags?.find((t) => t.originalTitle === tag));
 
 export function bankCompletions() {
-  const soundDict = soundMap.get();
+  // TODO: FIX IMPORT
+  const soundDict = soundMap?.get() ?? {};
+
   const banks = new Set();
   for (const key of Object.keys(soundDict)) {
     const [bank, suffix] = key.split('_');
@@ -90,13 +94,13 @@ export function bankCompletions() {
     .map((name) => ({ label: name, type: 'bank' }));
 }
 
-// Attempt to get all scale names from Tonal
+// Attempt to get all scale names from Tonal TODO: FIX IMPORT
 let scaleCompletions = [];
-try {
-  scaleCompletions = (Scale.names ? Scale.names() : []).map((name) => ({ label: name, type: 'scale' }));
-} catch (e) {
-  console.warn('[autocomplete] Could not load scale names from Tonal:', e);
-}
+// try {
+//   scaleCompletions = (Scale.names ? Scale.names() : []).map((name) => ({ label: name, type: 'scale' }));
+// } catch (e) {
+//   console.warn('[autocomplete] Could not load scale names from Tonal:', e);
+// }
 
 // Valid mode values for voicing
 const modeCompletions = [
@@ -268,7 +272,7 @@ function soundHandler(context) {
   const inside = text.slice(quoteIdx + 1);
   const fragMatch = inside.match(SOUND_FRAGMENT_MATCH_REGEX);
   const fragment = fragMatch ? fragMatch[1] : inside;
-  const soundNames = Object.keys(soundMap.get()).sort();
+  const soundNames = Object.keys(soundMap?.get() ?? {}).sort();
   const filteredSounds = soundNames.filter((name) => name.includes(fragment));
   let options = filteredSounds.map((name) => ({ label: name, type: 'sound' }));
   const from = soundContext.to - fragment.length;

@@ -586,6 +586,18 @@ describe('Pattern', () => {
           .map((a) => a.value),
       ).toStrictEqual(['c', 'b', 'a']);
     });
+    it('Does not reverse the order of cycles', () => {
+      expect(fastcat('a', 'b', 'c', 'd').slow(2).rev().fast(2).sortHapsByPart().firstCycle()).toStrictEqual(
+        fastcat('b', 'a', 'd', 'c').firstCycle(),
+      );
+    });
+  });
+  describe('revv()', () => {
+    it('Does reverse the order of cycles', () => {
+      expect(fastcat('a', 'b', 'c', 'd').slow(2).revv().fast(2).sortHapsByPart().firstCycle()).toStrictEqual(
+        fastcat('d', 'c', 'b', 'a').firstCycle(),
+      );
+    });
   });
   describe('sequence()', () => {
     it('Can work like fastcat', () => {

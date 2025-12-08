@@ -48,28 +48,94 @@ You can also use the `crackle` type to play some subtle noise crackles. You can 
 
 ### Additive Synthesis
 
-To tame the harsh sound of the basic waveforms, we can set the `n` control to limit the overtones of the waveform:
+Periodic waveforms are composed of several [harmonics](https://en.wikipedia.org/wiki/Harmonic) above a fundamental frequency, lying at integer multiples. These overtones combine to give a sound its unique timbral quality.
+
+For the basic waveforms, we offer you control over these harmonics with the `partials` and `phases` functions.
+
+#### Partials
+
+`partials` refers to the magnitude of each harmonic relative to the fundamental frequency. They can thus be used to spectrally filter these waveforms and tame some of their harshness:
 
 <MiniRepl
   client:idle
   tune={`note("c2 <eb2 <g2 g1>>".fast(2))
 .sound("sawtooth")
-.n("<32 16 8 4>")
+.partials([1, 1, "<1 0>", "<1 0>", "<1 0>", "<1 0>", "<1 0>"])
 ._scope()`}
 />
 
-When the `n` control is used on a basic waveform, it defines the number of harmonic partials the sound is getting.
-You can also set `n` directly in mini notation with `sound`:
+`partials` can also be used to construct _new_ waveforms not present in our basic set with the 'user' sound source:
 
 <MiniRepl
   client:idle
   tune={`note("c2 <eb2 <g2 g1>>".fast(2))
-.sound("sawtooth:<32 16 8 4>")
+.sound("user")
+.partials([1, 0, 0.3, 0, 0.1, 0, 0, 0.3])
 ._scope()`}
 />
 
-Note for tidal users: `n` in tidal is synonymous to `note` for synths only.
-In strudel, this is not the case, where `n` will always change timbre, be it though different samples or different waveforms.
+We may algorithmically construct lists of magnitudes with Javascript code like:
+
+<MiniRepl
+  client:idle
+  tune={`const numHarmonics = 22;
+note("c2 <eb2 <g2 g1>>".fast(2))
+.sound("saw")
+.partials(new Array(numHarmonics).fill(1))
+._scope()`}
+/>
+
+which acts as a spectral filter. Or:
+
+<MiniRepl
+  client:idle
+  tune={`note("c2 <eb2 <g2 g1>>").fast(2)
+.sound("user")
+.partials(new Array(50).fill(0)
+  .map((_, idx) => ((-1) ** (idx + 1)) / (idx + 1))
+)
+._scope()`}
+/>
+
+which recovers a familiar waveform.
+
+`partials` is also compatible with pattern functions designed to produce lists, like `randL` or `binaryL`:
+
+<MiniRepl
+  client:idle
+  tune={`note("c2 <eb2 <g2 g1>>").fast(2)
+.sound("user")
+.partials(randL(10))
+._scope()`}
+/>
+
+and with lists _of_ patterns:
+
+<MiniRepl
+  client:idle
+  tune={`note("c2 <eb2 <g2 g1>>".fast(4))
+.sound("user")
+.partials([1, 0, "0 1", "0 1 0.3", rand])
+._scope()`}
+/>
+
+Note that the first value in the `partials` array controls the magnitude of the fundamental harmonic rather than the DC offset, which is fixed at 0.
+
+#### Phases
+
+Earlier, we mentioned that periodic waveforms can be broken into a set of harmonics above a fundamental frequency. Each harmonic has two defining properties: its magnitude (how loud it is) and its phase, which determines where in its cycle that sine wave starts when the waveform is built.
+
+These phases too can be declared in Strudel and can give your sounds interesting depth.
+
+<MiniRepl
+  client:idle
+  tune={`s("saw").seg(16).n(irand(12)).scale("F1:minor")
+  .penv(48).panchor(0).pdec(0.05)
+  .delay(0.25).room(0.25)
+  .compressor(-20).vib(0.3)
+  .partials(randL(200))
+  .phases(randL(200))`}
+/>
 
 ## Vibrato
 

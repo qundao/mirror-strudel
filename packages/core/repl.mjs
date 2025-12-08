@@ -152,9 +152,9 @@ export function repl({
         // allows muting a pattern x with x_ or _x
         return silence;
       }
-      if (id === '$') {
+      if (id.includes('$')) {
         // allows adding anonymous patterns with $:
-        id = `$${anonymousIndex}`;
+        id = `${id}${anonymousIndex}`;
         anonymousIndex++;
       }
       pPatterns[id] = this;
@@ -215,8 +215,19 @@ export function repl({
       let { pattern, meta } = await _evaluate(code, transpiler, transpilerOptions);
       if (Object.keys(pPatterns).length) {
         let patterns = [];
+        let soloActive = false;
         for (const [key, value] of Object.entries(pPatterns)) {
-          patterns.push(value.withState((state) => state.setControls({ id: key })));
+          // handle soloed patterns ex: S$: s("bd!4")
+          const isSolod = key.length > 1 && key.startsWith('S');
+          if (isSolod && soloActive === false) {
+            // first time we see a soloed pattern, clear existing patterns
+            patterns = [];
+            soloActive = true;
+          }
+          if (!soloActive || (soloActive && isSolod)) {
+            const valWithState = value.withState((state) => state.setControls({ id: key }));
+            patterns.push(valWithState);
+          }
         }
         if (eachTransform) {
           // Explicit lambda so only element (not index and array) are passed
@@ -227,14 +238,13 @@ export function repl({
         pattern = eachTransform(pattern);
       }
       if (allTransforms.length) {
-        for (let i in allTransforms) {
-          pattern = allTransforms[i](pattern);
+        for (const transform of allTransforms) {
+          pattern = transform(pattern);
         }
       }
 
       if (!isPattern(pattern)) {
-        const message = `got "${typeof evaluated}" instead of pattern`;
-        throw new Error(message + (typeof evaluated === 'function' ? ', did you forget to call a function?' : '.'));
+        pattern = silence;
       }
       logger(`[eval] code updated`);
       pattern = await setPattern(pattern, autostart);

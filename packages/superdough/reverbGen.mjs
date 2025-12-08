@@ -104,6 +104,8 @@ var applyGradualLowpass = function (input, lpFreqStart, lpFreqEnd, lpFreqEndAt, 
   player.start();
   context.oncomplete = function (event) {
     callback(event.renderedBuffer);
+    filter.disconnect();
+    player.disconnect();
   };
   context.startRendering();
 

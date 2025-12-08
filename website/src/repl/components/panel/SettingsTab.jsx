@@ -7,6 +7,8 @@ import { AudioDeviceSelector } from './AudioDeviceSelector.jsx';
 import { AudioEngineTargetSelector } from './AudioEngineTargetSelector.jsx';
 import { confirmDialog } from '../../util.mjs';
 import { DEFAULT_MAX_POLYPHONY, setMaxPolyphony, setMultiChannelOrbits } from '@strudel/webaudio';
+import { ActionButton, SpecialActionButton } from '../button/action-button.jsx';
+import { ImportPrebakeScriptButton } from './ImportPrebakeScriptButton.jsx';
 
 function Checkbox({ label, value, onChange, disabled = false }) {
   return (
@@ -112,6 +114,8 @@ export function SettingsTab({ started }) {
     multiChannelOrbits,
     isTabIndentationEnabled,
     isMultiCursorEnabled,
+    patternAutoStart,
+    includePrebakeScriptInShare,
   } = useSettings();
   const shouldAlwaysSync = isUdels();
   const canChangeAudioDevice = AudioContext.prototype.setSinkId != null;
@@ -203,6 +207,15 @@ export function SettingsTab({ started }) {
           />
         </FormItem>
       </div>
+      <FormItem label="Prebake">
+        <ImportPrebakeScriptButton />
+        <Checkbox
+          label="Include prebake script in share"
+          onChange={(cbEvent) => settingsMap.setKey('includePrebakeScriptInShare', cbEvent.target.checked)}
+          value={includePrebakeScriptInShare}
+        />
+      </FormItem>
+
       <FormItem label="Keybindings">
         <ButtonGroup
           value={keybindings}
@@ -304,11 +317,15 @@ export function SettingsTab({ started }) {
           onChange={(cbEvent) => settingsMap.setKey('isCSSAnimationDisabled', cbEvent.target.checked)}
           value={isCSSAnimationDisabled}
         />
+        <Checkbox
+          label="Auto-start pattern on pattern change"
+          onChange={(cbEvent) => settingsMap.setKey('patternAutoStart', cbEvent.target.checked)}
+          value={patternAutoStart}
+        />
       </FormItem>
       <FormItem label="Zen Mode">Try clicking the logo in the top left!</FormItem>
       <FormItem label="Reset Settings">
-        <button
-          className="bg-background p-2 max-w-[300px] rounded-md hover:opacity-50"
+        <SpecialActionButton
           onClick={() => {
             confirmDialog('Sure?').then((r) => {
               if (r) {
@@ -319,7 +336,7 @@ export function SettingsTab({ started }) {
           }}
         >
           restore default settings
-        </button>
+        </SpecialActionButton>
       </FormItem>
     </div>
   );

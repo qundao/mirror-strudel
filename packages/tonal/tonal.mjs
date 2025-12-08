@@ -5,7 +5,16 @@ This program is free software: you can redistribute it and/or modify it under th
 */
 
 import { Note, Interval, Scale } from '@tonaljs/tonal';
-import { register, _mod, logger, isNote, noteToMidi, removeUndefineds, getAccidentalsOffset } from '@strudel/core';
+import {
+  _mod,
+  errorLogger,
+  getAccidentalsOffset,
+  isNote,
+  logger,
+  noteToMidi,
+  register,
+  removeUndefineds,
+} from '@strudel/core';
 import { stepInNamedScale, nearestNumberIndex } from './tonleiter.mjs';
 
 const octavesInterval = (octaves) => (octaves <= 0 ? -1 : 1) + octaves * 7 + 'P';
@@ -229,6 +238,9 @@ function _getNearestScaleNote(scaleName, note, preferHigher = true) {
  *
  * A scale consists of a root note (e.g. `c4`, `c`, `f#`, `bb4`) followed by semicolon (':') and then a [scale type](https://github.com/tonaljs/tonal/blob/main/packages/scale-type/data.ts).
  *
+ * The scale name must be written without spaces (because it would be interpreted as a multi-step pattern otherwise).
+ * If your scale name includes spaces, replace them with colons.
+ *
  * The root note defaults to octave 3, if no octave number is given.
  *
  * @name scale
@@ -250,6 +262,8 @@ function _getNearestScaleNote(scaleName, note, preferHigher = true) {
  * .s("piano")
  * @example
  * note("C1*16").transpose(irand(36)).scale('Cb2 major').scaleTranspose(3)
+ * @example
+ * n("[0 0] [1 2] [3 4] [5 6]").scale("C:major:blues")
  */
 export const scale = register(
   'scale',
@@ -289,7 +303,7 @@ export const scale = register(
             }
             if (offset != 0) scaleNote = Note.transpose(scaleNote, Interval.fromSemitones(offset));
           } catch (err) {
-            logger(`[tonal] ${err.message}`, 'error');
+            errorLogger(err, 'tonal');
             return; // will be removed
           }
         }

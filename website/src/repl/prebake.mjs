@@ -3,6 +3,8 @@ import { aliasBank, registerSynthSounds, registerZZFXSounds, samples } from '@st
 import { registerSamplesFromDB } from './idbutils.mjs';
 import './piano.mjs';
 import './files.mjs';
+import { settingsMap } from '@src/settings.mjs';
+import { evaluate } from '@strudel/transpiler';
 
 const { BASE_URL } = import.meta.env;
 const baseNoTrailing = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;

@@ -41,7 +41,6 @@ Tune.prototype.tonicize = function(newTonic) {
 	this.tonic = newTonic
 }
 
-
 /* Return data in the mode you are in (freq, ratio, or midi) */
 
 Tune.prototype.note = function(input,octave){

@@ -65,8 +65,9 @@ export function getNoiseOscillator(type = 'white', t, density = 0.02) {
 export function getNoiseMix(inputNode, wet, t) {
   const noiseOscillator = getNoiseOscillator('pink', t);
   const noiseMix = drywet(inputNode, noiseOscillator.node, wet);
+  noiseOscillator.node.onended = () => noiseMix.onended();
   return {
-    node: noiseMix,
+    node: noiseMix.node,
     stop: (time) => noiseOscillator?.stop(time),
   };
 }

@@ -45,7 +45,8 @@ if (typeof GainNode !== 'undefined') {
         throw new Error('vowel: unknown vowel ' + letter);
       }
       const { gains, qs, freqs } = vowelFormant[letter];
-      const makeupGain = ac.createGain();
+      this.makeupGain = ac.createGain();
+      this.audioNodes = [];
       for (let i = 0; i < 5; i++) {
         const gain = ac.createGain();
         gain.gain.value = gains[i];
@@ -53,13 +54,24 @@ if (typeof GainNode !== 'undefined') {
         filter.type = 'bandpass';
         filter.Q.value = qs[i];
         filter.frequency.value = freqs[i];
-        this.connect(filter);
+        super.connect(filter);
         filter.connect(gain);
-        gain.connect(makeupGain);
+        this.audioNodes.push(filter);
+        gain.connect(this.makeupGain);
+        this.audioNodes.push(gain);
       }
-      makeupGain.gain.value = 8; // how much makeup gain to add?
-      this.connect = (target) => makeupGain.connect(target);
+      this.makeupGain.gain.value = 8; // how much makeup gain to add?
       return this;
+    }
+    connect(target) {
+      this.makeupGain.connect(target);
+    }
+    disconnect() {
+      this.makeupGain.disconnect();
+      this.audioNodes.forEach((n) => n.disconnect());
+      super.disconnect();
+      this.makeupGain = null;
+      this.audioNodes = null;
     }
   }
 
