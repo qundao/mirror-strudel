@@ -72,11 +72,45 @@ class Edge {
   }
 }
 
-class SubGraph {
-  constructor(id) {
+let audioGraph;
+class AudioGraph {
+  constructor() {
     this.id = id;
+    this.activeSubGraphs = [];
+    this.subGraphs = {};
     this.edges = [];
+    this.subGraphCounter = 0;
   }
+
+  connect(from, to) {
+    const edge = new Edge(from, to);
+    for (const subGraph of this.activeSubGraphs) {
+      // Track which subgraphs it's in
+      edge.subGraphs.add(subGraph.id);
+      // Add to the subgraph's `edges`
+      subGraph.edges.push(edge);
+      // Add to this' `edges`
+      this.edges.push(edge);
+    }
+    // Make the actual connection
+    return from.connect(to);
+  }
+
+  // Introduces a context wherein all connections will be added to both this graph
+  // and the subgraph and all edges will be tagged with the subgraph for tracking
+  asSubGraph(fn) {
+    const subGraph = new AudioGraph(`${this.id}_${this.subGraphCounter}`);
+    this.subGraphCounter++;
+    this.subGraphs[this.id] = subGraph;
+    this.activeSubGraphs.push(subGraph);
+    try {
+      return { subGraph, output: fn() };
+    } finally {
+      this.activeSubGraphs.pop();
+    }
+  }
+
+  // Disconnects all from-to connections (rather than naked `from.disconnect()`)
   disconnect() {
     for (const edge of this.edges) {
       const from = edge.from.deref();
@@ -85,6 +119,8 @@ class SubGraph {
     }
     this.edges = null;
   }
+
+  // Release this entire graph (nodes will be fully disconnected, stopped, etc)
   release() {
     for (const edge of this.edges) {
       const from = edge.from.deref();
@@ -96,39 +132,9 @@ class SubGraph {
   }
 }
 
-let audioGraph;
-class AudioGraph {
-  constructor() {
-    this.activeSubGraphs = [];
-    this.subGraphs = {};
-    this.id = 0;
-  }
-
-  connect(from, to) {
-    const edge = new Edge(from, to);
-    for (const subGraph of this.activeSubGraphs) {
-      edge.subGraphs.add(subGraph.name);
-      subGraph.edges.add(edge);
-    }
-    return from.connect(to);
-  }
-
-  asSubGraph(fn) {
-    const subGraph = new SubGraph(this.id);
-    this.id++;
-    this.subGraphs[this.id] = subGraph;
-    this.activeSubGraphs.push(subGraph);
-    try {
-      return { subGraph, output: fn() };
-    } finally {
-      this.activeSubGraphs.pop();
-    }
-  }
-}
-
 export const getAudioGraph = () => {
   if (audioGraph === undefined) {
-    audioGraph = new AudioGraph();
+    audioGraph = new AudioGraph(id = 0);
   }
   return audioGraph;
 };
