@@ -113,7 +113,7 @@ class AudioGraph {
     return from.connect(to);
   }
 
-  asSubgraph(fn) {
+  asSubGraph(fn) {
     const subGraph = new SubGraph(this.id);
     this.id++;
     this.subGraphs[this.id] = subGraph;
