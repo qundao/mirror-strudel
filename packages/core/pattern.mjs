@@ -574,7 +574,8 @@ export class Pattern {
    * Returns a new Pattern, which only returns haps that meet the given test.
    * @param {Function} hap_test - a function which returns false for haps to be removed from the pattern
    * @returns Pattern
-   * @noAutocomplete
+   * @example
+   * s("bd*8").velocity(rand).filterHaps((h) => (h.whole.begin % 1) < h.value.velocity)
    */
   filterHaps(hap_test) {
     return new Pattern((state) => this.query(state).filter(hap_test));
@@ -585,7 +586,11 @@ export class Pattern {
    * inside haps.
    * @param {Function} value_test
    * @returns Pattern
-   * @noAutocomplete
+   * @example
+   * const drums = s("bd sd bd sd")
+   * kick: drums.filterValues((v) => v.s === 'bd').duck(2)
+   * snare: drums.filterValues((v) => v.s === 'sd')
+   * bass: s("saw!4").note("G#1").lpf(80).lpenv(4).orbit(2)
    */
   filterValues(value_test) {
     return new Pattern((state) => this.query(state).filter((hap) => value_test(hap.value))).setSteps(this._steps);
@@ -1587,7 +1592,13 @@ export const func = curry((a, b) => reify(b).func(a));
  *
  * @param {string | string[]} name name of the function, or an array of names to be used as synonyms
  * @param {function} func function with 1 or more params, where last is the current pattern
- * @noAutocomplete
+ * @param {bool} patternify defaults to true; if set to false, you will have more control over the arguments to `func` as they will be
+ *   in their raw form and it will be up to you to patternify them and/or query them for values
+ * @example
+ * const vlpf = register('vlpf', (freq, pat) => {
+ *   return pat.fmap((v) => ({...v, cutoff: freq * (v.velocity ?? 1) }));
+ * })
+ * s("saw").seg(8).velocity(rand).vlpf(800)
  *
  */
 export function register(name, func, patternify = true, preserveSteps = false, join = (x) => x.innerJoin()) {
@@ -2676,8 +2687,13 @@ export const hsl = register('hsl', (h, s, l, pat) => {
 /**
  * Tags each Hap with an identifier. Good for filtering. The function populates Hap.context.tags (Array).
  * @name tag
- * @noAutocomplete
  * @param {string} tag anything unique
+ * @example
+ * s("saw!16").note("F1")
+ *   .lpf(tri.range(40, 80).slow(4)).lpenv(5).lpq(4).lpd(0.15)
+ *   .when(rand.late(0.1).gte(0.5), x => x.transpose("12").tag('altered'))
+ *   .when(rand.late(0.2).gte(0.5), x => x.s("square").tag('altered'))
+ *   .when("<0 1>", x => x.filter((hap) => hap.hasTag('altered')))
  */
 Pattern.prototype.tag = function (tag) {
   return this.withContext((ctx) => ({ ...ctx, tags: (ctx.tags || []).concat([tag]) }));
@@ -2688,15 +2704,16 @@ Pattern.prototype.tag = function (tag) {
  * @name filter
  * @param {Function} test function to test Hap
  * @example
- * s("hh!7 oh").filter(hap => hap.value.s==='hh')
+ * s("hh!7 oh").filter(hap => hap.value.s === 'hh')
  */
 export const filter = register('filter', (test, pat) => pat.withHaps((haps) => haps.filter(test)));
 
 /**
  * Filters haps by their begin time
  * @name filterWhen
- * @noAutocomplete
  * @param {Function} test function to test Hap.whole.begin
+ * @example
+ * oneCycle: s("bd*4").filterWhen((t) => t < 1)
  */
 export const filterWhen = register('filterWhen', (test, pat) => pat.filter((h) => test(h.whole.begin)));
 

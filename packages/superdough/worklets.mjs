@@ -11,6 +11,9 @@ const PI = Math.PI;
 const TWO_PI = 2 * PI;
 const INVSR = 1 / sampleRate;
 
+const timeToCoeff = (t) => 1 - Math.exp(-INVSR / t);
+const dbToLin = (db) => Math.pow(10, db / 20);
+
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 const mod = (n, m) => ((n % m) + m) % m;
 const lerp = (a, b, n) => n * (b - a) + a;
@@ -508,12 +511,13 @@ class SuperSawOscillatorProcessor extends AudioWorkletProcessor {
     ];
   }
   process(_input, outputs, params) {
-    if (currentTime <= params.begin[0]) {
-      return true;
-    }
     if (currentTime >= params.end[0]) {
-      // this.port.postMessage({ type: 'onended' });
+      // should terminate
       return false;
+    }
+    if (currentTime <= params.begin[0]) {
+      // keep alive
+      return true;
     }
     const output = outputs[0];
     const voices = params.voices[0]; // k-rate
@@ -1383,3 +1387,82 @@ class WavetableOscillatorProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('wavetable-oscillator-processor', WavetableOscillatorProcessor);
+
+class TransientProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [];
+  }
+
+  constructor(options) {
+    super();
+    this.gainCoeff = timeToCoeff(0.2);
+    this.avgGain = 1;
+    let {
+      attackTime = 0.003,
+      sustainTime = 0.08,
+      attack = 0,
+      sustain = 0,
+      sensitivity = 0.1,
+      mix = 1,
+      begin = 0,
+      end = 0,
+    } = options.processorOptions;
+    attackTime = clamp(attackTime, 0.0005, 0.05);
+    sustainTime = clamp(sustainTime, 0.01, 0.5);
+    this.attackCoeff = timeToCoeff(attackTime);
+    this.sustainCoeff = timeToCoeff(sustainTime);
+    this.attackAmt = clamp(attack, -1, 1);
+    this.sustainAmt = clamp(sustain, -1, 1);
+    this.scaling = 0.5 + 5 * clamp(sensitivity, 0, 1);
+    this.mix = clamp(mix, 0, 1);
+    this.begin = begin;
+    this.end = end;
+    this.attackEnv = new Float32Array(2); // assume stereo
+    this.sustainEnv = new Float32Array(2);
+  }
+
+  process(inputs, outputs, _params) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (currentTime >= this.end) {
+      return false;
+    }
+    if (currentTime <= this.begin) {
+      return true;
+    }
+    const channels = input.length;
+    if (channels > this.attackEnv.length) {
+      this.attackEnv = new Float32Array(channels);
+      this.sustainEnv = new Float32Array(channels);
+    }
+    let avgGain = this.avgGain;
+    for (let ch = 0; ch < channels; ch++) {
+      let attEnv = this.attackEnv[ch];
+      let susEnv = this.sustainEnv[ch];
+      for (let n = 0; n < blockSize; n++) {
+        const sample = input[ch][n];
+        const x = Math.abs(sample);
+        attEnv = lerp(attEnv, x, this.attackCoeff);
+        susEnv = lerp(susEnv, x, this.sustainCoeff);
+        const peakiness = clamp((this.scaling * (attEnv - susEnv)) / (susEnv + 1e-6), -1.5, 1.5);
+        const attScale = peakiness > 0 ? peakiness : 0;
+        const susScale = peakiness < 0 ? -peakiness : 0;
+        const attackGain = dbToLin(this.attackAmt * attScale * 18);
+        const sustainGain = dbToLin(this.sustainAmt * susScale * 36);
+        const gain = clamp(attackGain * sustainGain, 0, 8);
+        avgGain = lerp(avgGain, gain, this.gainCoeff);
+        const makeup = avgGain > 1e-3 ? 1 / avgGain : 1;
+        const wet = sample * gain * makeup;
+        let y = lerp(sample, wet, this.mix);
+        y /= 1 + Math.abs(y); // soft clip
+        output[ch][n] = y;
+      }
+      this.attackEnv[ch] = attEnv;
+      this.sustainEnv[ch] = susEnv;
+    }
+    this.avgGain = avgGain;
+    return true;
+  }
+}
+
+registerProcessor('transient-processor', TransientProcessor);

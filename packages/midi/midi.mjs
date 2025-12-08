@@ -479,14 +479,24 @@ Pattern.prototype.midi = function (midiport, options = {}) {
 
 let listeners = {};
 const refs = {};
+const refsByChan = {};
 
 /**
  * MIDI input: Opens a MIDI input port to receive MIDI control change messages.
+ *
+ * The output is a function that accepts a midi cc value to query as well as (optionally) a midi channel
  * @param {string | number} input MIDI device name or index defaulting to 0
- * @returns {Function}
+ * @returns {function(number, number=): Pattern} A function from (cc, channel?) to a pattern.
+ *   When queried, the pattern will produces the most recently received midi value (normalized to 0 to 1)
+ *   that came through that cc number (and channel, if provided)
  * @example
- * let cc = await midin('IAC Driver Bus 1')
+ * const cc = await midin('IAC Driver Bus 1')
  * note("c a f e").lpf(cc(0).range(0, 1000)).lpq(cc(1).range(0, 10)).sound("sawtooth")
+ * @example
+ * const allCC = await midin('IAC Driver Bus 1')
+ * const cc = (ccNum) => allCC(ccNum, 2) // just channel 2
+ * note("c a f e").s("saw")
+ *   .when(cc(0).gt(0), x => x.postgain(0))
  */
 export async function midin(input) {
   if (isPattern(input)) {
@@ -511,17 +521,24 @@ export async function midin(input) {
       }`,
     );
   }
-  // ensure refs for this input are initialized
-  if (!refs[input]) {
-    refs[input] = {};
-  }
-  const cc = (cc) => ref(() => refs[input][cc] || 0);
+  refs[input] ??= {};
+  refsByChan[input] ??= {};
+  const cc = (cc, chan) => {
+    if (chan !== undefined) {
+      return ref(() => refsByChan[input][cc]?.[chan] || 0);
+    }
+    return ref(() => refs[input][cc] || 0);
+  };
 
   listeners[input] && device.removeListener('midimessage', listeners[input]);
   listeners[input] = (e) => {
-    const cc = e.dataBytes[0];
+    const ccNum = e.dataBytes[0];
     const v = e.dataBytes[1];
-    refs[input] && (refs[input][cc] = v / 127);
+    const chan = e.message.channel;
+    const scaled = v / 127;
+    refsByChan[input][ccNum] ??= {};
+    refsByChan[input][ccNum][chan] = scaled;
+    refs[input][ccNum] = scaled;
   };
   device.addListener('midimessage', listeners[input]);
   return cc;
