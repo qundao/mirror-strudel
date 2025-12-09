@@ -27,8 +27,7 @@ export async function initCode() {
     const hash = initialUrl.split('?')[1]?.split('#')?.[0]?.split('&')[0];
     const codeParam = window.location.href.split('#')[1] || '';
     if (codeParam) {
-      if (codeParam[0] === '~')
-      {
+      if (codeParam[0] === '~') {
         // Encoded using base64url and compressed
         const baseurled = codeParam.substring(1);
         //console.log('baseurled', baseurled);
@@ -36,16 +35,17 @@ export async function initCode() {
         //console.log('compressed', compressed);
 
         const cs = new DecompressionStream('deflate');
-        const writer = cs.writable.getWriter(); writer.write(compressed); writer.close();
-        const encoded = await new Response(cs.readable).arrayBuffer()
+        const writer = cs.writable.getWriter();
+        writer.write(compressed);
+        writer.close();
+        const encoded = await new Response(cs.readable).arrayBuffer();
         //console.log('encoded', encoded);
 
         const decoded = new TextDecoder().decode(encoded);
         //console.log('decoded', decoded);
         return decoded;
-      } 
-      if (codeParam[0] === '_')
-      {
+      }
+      if (codeParam[0] === '_') {
         const url = decodeURIComponent(codeParam.substring(1));
         try {
           const response = await fetch(url);
@@ -54,8 +54,7 @@ export async function initCode() {
           }
           console.log('Response', response);
           return await response.text();
-        }
-        catch (error) {
+        } catch (error) {
           return `/* ERROR LOADING SCRIPT. ${error.message} */`;
         }
       }

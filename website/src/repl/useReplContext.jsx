@@ -112,7 +112,9 @@ export function useReplContext() {
         //console.log('encoded',encoded);
 
         const cs = new CompressionStream('deflate');
-        const writer = cs.writable.getWriter(); writer.write(encoded); writer.close();
+        const writer = cs.writable.getWriter();
+        writer.write(encoded);
+        writer.close();
         const compressed = new Uint8Array(await new Response(cs.readable).arrayBuffer());
         //console.log('compressed',compressed);
 
