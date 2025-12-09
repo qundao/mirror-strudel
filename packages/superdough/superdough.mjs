@@ -9,7 +9,16 @@ import './reverb.mjs';
 import './vowel.mjs';
 import { nanFallback, _mod, cycleToSeconds, pickAndRename } from './util.mjs';
 import workletsUrl from './worklets.mjs?audioworklet';
-import { createFilter, gainNode, getCompressor, getDistortion, getLfo, getWorklet, effectSend } from './helpers.mjs';
+import {
+  createFilter,
+  gainNode,
+  getCompressor,
+  getDistortion,
+  getLfo,
+  getWorklet,
+  effectSend,
+  releaseAudioNode,
+} from './helpers.mjs';
 import { map } from 'nanostores';
 import { logger } from './logger.mjs';
 import { loadBuffer } from './sampler.mjs';
@@ -505,7 +514,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   } else if (getSound(s)) {
     const { onTrigger } = getSound(s);
     const onEnded = () => {
-      audioNodes.forEach((n) => n?.disconnect());
+      audioNodes.forEach((n) => releaseAudioNode(n));
       activeSoundSources.delete(chainID);
     };
     const soundHandle = await onTrigger(t, value, onEnded, cps);
