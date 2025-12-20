@@ -22,19 +22,31 @@ import {
 import { map } from 'nanostores';
 import { logger } from './logger.mjs';
 import { loadBuffer } from './sampler.mjs';
-import { getAudioContext } from './audioContext.mjs';
+import { getAudioContext, setAudioContext } from './audioContext.mjs';
 import { SuperdoughAudioController } from './superdoughoutput.mjs';
+import { resetSeenKeys } from './wavetable.mjs';
 
 export const DEFAULT_MAX_POLYPHONY = 128;
 const DEFAULT_AUDIO_DEVICE_NAME = 'System Standard';
 
-let maxPolyphony = DEFAULT_MAX_POLYPHONY;
+export let maxPolyphony = DEFAULT_MAX_POLYPHONY;
 
+/**
+ * Set the max polyphony. If notes are ringing out via `release` then they will
+ * start to die out in first-in-first-out order once the max polyphony has been hit
+ *
+ * @name setMaxPolyphony
+ * @param {number} Max polyphony. Defaults to 128
+ * @example
+ * setMaxPolyphony(4)
+ * n(irand(24).seg(8)).scale("C#3:minor").room(1).release(4).gain(0.5)
+ *
+ */
 export function setMaxPolyphony(polyphony) {
   maxPolyphony = parseInt(polyphony) ?? DEFAULT_MAX_POLYPHONY;
 }
 
-let multiChannelOrbits = false;
+export let multiChannelOrbits = false;
 export function setMultiChannelOrbits(bool) {
   multiChannelOrbits = bool == true;
 }
@@ -52,6 +64,17 @@ export function applyGainCurve(val) {
   return gainCurveFunc(val);
 }
 
+/**
+ * Apply a function to all gains provided in patterns. Can be used to rescale gain to be
+ * quadratic, exponential, etc. rather than linear
+ *
+ * @name setGainCurve
+ * @param {Function} function to apply to all gain values
+ * @example
+ * setGainCurve((x) => x * x) // quadratic gain
+ * s("bd*4").gain(0.5) // equivalent to 0.25 gain normally
+ *
+ */
 export function setGainCurve(newGainCurveFunc) {
   gainCurveFunc = newGainCurveFunc;
 }
@@ -212,11 +235,13 @@ export function registerWorklet(url) {
 }
 
 let workletsLoading;
-function loadWorklets() {
+export function loadWorklets() {
   if (!workletsLoading) {
     const audioCtx = getAudioContext();
     const allWorkletURLs = externalWorklets.concat([workletsUrl]);
-    workletsLoading = Promise.all(allWorkletURLs.map((workletURL) => audioCtx.audioWorklet.addModule(workletURL)));
+    workletsLoading = Promise.all(allWorkletURLs.map((workletURL) => audioCtx.audioWorklet.addModule(workletURL))).then(
+      () => (workletsLoading = undefined),
+    );
   }
 
   return workletsLoading;
@@ -233,6 +258,7 @@ export async function initAudio(options = {}) {
 
   setMaxPolyphony(maxPolyphony);
   setMultiChannelOrbits(multiChannelOrbits);
+  resetSeenKeys();
   if (typeof window === 'undefined') {
     return;
   }
@@ -254,8 +280,9 @@ export async function initAudio(options = {}) {
       logger('[superdough] failed to set audio interface', 'warning');
     }
   }
-
-  await audioCtx.resume();
+  if ((!audioCtx) instanceof OfflineAudioContext) {
+    await audioCtx.resume();
+  }
   if (disableWorklets) {
     logger('[superdough]: AudioWorklets disabled with disableWorklets');
     return;
@@ -289,6 +316,12 @@ export function getSuperdoughAudioController() {
   }
   return controller;
 }
+
+export function setSuperdoughAudioController(newController) {
+  controller = newController;
+  return controller;
+}
+
 export function connectToDestination(input, channels) {
   const controller = getSuperdoughAudioController();
   controller.output.connectToDestination(input, channels);
@@ -326,7 +359,7 @@ export let analysers = {},
   analysersData = {};
 
 export function getAnalyserById(id, fftSize = 1024, smoothingTimeConstant = 0.5) {
-  if (!analysers[id]) {
+  if (!analysers[id] || analysers[id].audioContext != getAudioContext()) {
     // make sure this doesn't happen too often as it piles up garbage
     const analyserNode = getAudioContext().createAnalyser();
     analyserNode.fftSize = fftSize;
@@ -388,7 +421,6 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   // duration is passed as value too..
   value.duration = hapDuration;
   // calculate absolute time
-
   if (t < ac.currentTime) {
     console.warn(
       `[superdough]: cannot schedule sounds in the past (target: ${t.toFixed(2)}, now: ${ac.currentTime.toFixed(2)})`,
@@ -760,7 +792,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
   }
 
   // analyser
-  if (analyze) {
+  if (analyze && !(ac instanceof OfflineAudioContext)) {
     const analyserNode = getAnalyserById(analyze, 2 ** (fft + 5));
     const analyserSend = effectSend(post, analyserNode, 1);
     audioNodes.push(analyserSend);

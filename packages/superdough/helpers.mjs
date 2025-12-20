@@ -42,6 +42,7 @@ export const getParamADSR = (
   decay,
   sustain,
   release,
+  // min = value at start of attack, max = value at end of attack; it is possible that max < min
   min,
   max,
   begin,
@@ -59,17 +60,15 @@ export const getParamADSR = (
     max = max === 0 ? 0.001 : max;
   }
   const range = max - min;
-  const peak = max;
   const sustainVal = min + sustain * range;
   const duration = end - begin;
 
   const envValAtTime = (time) => {
     let val;
     if (attack > time) {
-      let slope = getSlope(min, peak, 0, attack);
-      val = time * slope + (min > peak ? min : 0);
+      val = time * getSlope(min, max, 0, attack) + min;
     } else {
-      val = (time - attack) * getSlope(peak, sustainVal, 0, decay) + peak;
+      val = (time - attack) * getSlope(max, sustainVal, 0, decay) + max;
     }
     if (curve === 'exponential') {
       val = val || 0.001;
@@ -593,7 +592,7 @@ export const releaseAudioNode = (node) => {
   // make sure all AudioScheduledSourceNodes are in a stopped state
   // https://developer.mozilla.org/en-US/docs/Web/API/AudioScheduledSourceNode
   if (node instanceof AudioScheduledSourceNode) {
-    if (node.onended && node.onended.name !== 'cleanup') {
+    if (process.env.NODE_ENV === 'development' && node.onended && node.onended.name !== 'cleanup') {
       logger(
         `[superdough] Deprecation warning: it seems your code path is setting 'node.onended = callback' instead of using the onceEnded helper`,
       );
