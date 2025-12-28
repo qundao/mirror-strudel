@@ -4,7 +4,7 @@ import { Pattern, noteToMidi, evaluate, stack } from '@strudel/core';
 // import doughUrl from 'dough-synth?url';
 import { transpiler } from '@strudel/transpiler';
 //const doughBaseUrl = doughUrl.split('/').slice(0, -1).join('/') + '/';
-const doughBaseUrl = 'https://unpkg.com/dough-synth@0.1.9/';
+const doughBaseUrl = 'https://unpkg.com/dough-synth@0.2.0/';
 
 Object.assign(globalThis, { doughsamples });
 
