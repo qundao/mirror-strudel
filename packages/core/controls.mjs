@@ -3076,3 +3076,11 @@ export const bmod = (config) => pure({}).bmod(config);
 export const { transient } = registerControl(['transient', 'transsustain']);
 
 export const { FXrelease, FXrel, FXr, fxr } = registerControl('FXrelease', 'FXrel', 'FXr', 'fxr');
+
+/**
+ * Input audio device to be used as a sound source in a pattern
+ *
+ * @name input
+ * @param {string | Pattern} inputName Name of the input audio device to use
+ */
+export const { input } = registerControl('input');

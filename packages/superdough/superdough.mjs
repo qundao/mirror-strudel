@@ -14,9 +14,11 @@ import {
   createFilter,
   effectSend,
   gainNode,
+  getADSRValues,
   getCompressor,
   getDistortion,
   getLfo,
+  getParamADSR,
   getWorklet,
   releaseAudioNode,
   webAudioTimeout,
@@ -176,6 +178,19 @@ export const getAudioDevices = async () => {
   return devicesMap;
 };
 
+let AUDIO_INPUTS;
+export const getAudioInputs = async () => {
+  await navigator.mediaDevices.getUserMedia({ audio: true });
+  let mediaDevices = await navigator.mediaDevices.enumerateDevices();
+  mediaDevices = mediaDevices.filter((device) => device.kind === 'audioinput' && device.deviceId !== 'default');
+  const devicesMap = new Map();
+  devicesMap.set(DEFAULT_AUDIO_DEVICE_NAME, '');
+  mediaDevices.forEach((device) => {
+    devicesMap.set(device.label, device.deviceId);
+  });
+  return devicesMap;
+};
+
 let defaultDefaultValues = {
   s: 'triangle',
   gain: 0.8,
@@ -254,6 +269,7 @@ export function loadWorklets() {
   return workletsLoading;
 }
 
+let AUDIO_OUTPUTS;
 // this function should be called on first user interaction (to avoid console warning)
 export async function initAudio(options = {}) {
   const {
@@ -274,8 +290,8 @@ export async function initAudio(options = {}) {
 
   if (audioDeviceName != null && audioDeviceName != DEFAULT_AUDIO_DEVICE_NAME) {
     try {
-      const devices = await getAudioDevices();
-      const id = devices.get(audioDeviceName);
+      AUDIO_OUTPUTS = await getAudioDevices();
+      const id = AUDIO_OUTPUTS.get(audioDeviceName);
       const isValidID = (id ?? '').length > 0;
       if (audioCtx.sinkId !== id && isValidID) {
         await audioCtx.setSinkId(id);
@@ -314,6 +330,51 @@ export async function initAudioOnFirstClick(options) {
     });
   }
   return audioReady;
+}
+
+const CACHED_INPUTS = {};
+export async function getInput(input) {
+  let sourceNode = CACHED_INPUTS[input];
+  if (sourceNode === undefined) {
+    const ac = getAudioContext();
+    if (!AUDIO_INPUTS) {
+      AUDIO_INPUTS = await getAudioInputs();
+    }
+    const available = Array.from(AUDIO_INPUTS.keys());
+    // Convert numerical inputs to their corresponding device name
+    const deviceName = typeof input === 'number' ? available[input] : input;
+    const inputId = AUDIO_INPUTS.get(deviceName);
+    if (inputId === undefined) {
+      throw new Error(`[superdough] input "${input}" not found. Available inputs: ${available.join(', ')}`);
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: { exact: inputId },
+        channelCount: { ideal: 2 },
+        sampleRate: { ideal: ac.sampleRate },
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        latency: { ideal: 0.01 },
+      },
+    });
+    sourceNode = ac.createMediaStreamSource(stream);
+    CACHED_INPUTS[input] = sourceNode;
+  }
+  return sourceNode;
+}
+
+async function getInputHandle(input, value, start, end) {
+  const inputNode = await getInput(input);
+  const envGain = gainNode(0);
+  inputNode.connect(envGain);
+  const [attack, decay, sustain, release] = getADSRValues(
+    [value.attack, value.decay, value.sustain, value.release],
+    'linear',
+    [0.001, 0.05, 0.6, 0.01],
+  );
+  getParamADSR(envGain.gain, attack, decay, sustain, release, 0, 1, start, end, 'linear');
+  return { inputNode, envGain };
 }
 
 let controller;
@@ -408,9 +469,9 @@ function mapChannelNumbers(channels) {
 }
 
 class Chain {
-  constructor(head) {
-    this.audioNodes = [head];
-    this.tails = [head];
+  constructor() {
+    this.audioNodes = [];
+    this.tails = [];
   }
   connect(...nodes) {
     nodes.forEach((node) => {
@@ -497,6 +558,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     fft = getDefaultValue('fft'), // fftSize 0 - 10
     FX = [],
     FXrelease,
+    input,
   } = value;
 
   delaytime = delaytime ?? cycleToSeconds(delaysync, cps);
@@ -539,11 +601,28 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     value.s = s;
   }
 
+  const chain = new Chain(); // connection manager which tracks audio nodes for releasing
+
   // get source AudioNode
   let sourceNode;
   if (source) {
     sourceNode = source(t, value, hapDuration, cps);
     nodes.main['source'] = [sourceNode];
+  } else if (input) {
+    const { inputNode, envGain } = await getInputHandle(input, value, t, end);
+    sourceNode = envGain;
+    webAudioTimeout(
+      ac,
+      () => {
+        chain.releaseNodes();
+        activeSoundSources.delete(chainID);
+        // We disconnect inputNode instead of releasing it
+        // because we want inputs to persist
+        inputNode.disconnect(envGain);
+      },
+      t,
+      endWithRelease,
+    );
   } else if (getSound(s)) {
     const { onTrigger } = getSound(s);
 
@@ -579,7 +658,7 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     return;
   }
 
-  const chain = new Chain(sourceNode); // connection manager which tracks audio nodes for releasing
+  chain.connect(sourceNode);
   FX = [...FX, value]; // run through the FX chain and then run through all FX outside of it as well
   for (let [idx, fx] of Object.entries(FX)) {
     const key = idx == FX.length - 1 ? 'main' : idx;
