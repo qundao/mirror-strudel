@@ -3081,6 +3081,10 @@ export const { FXrelease, FXrel, FXr, fxr } = registerControl('FXrelease', 'FXre
  * Input audio device to be used as a sound source in a pattern
  *
  * @name input
- * @param {string | Pattern} inputName Name of the input audio device to use
+ * @param {string | number | Pattern} input Name or index of the input audio device to use
+ * @example
+ * // Please be careful about feedback!
+ * input("1 2").gain(0.5)
+ *   .stretch(0.5).lfo({ s: 0.5 })
  */
 export const { input } = registerControl('input');
