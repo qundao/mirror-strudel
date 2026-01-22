@@ -12,7 +12,6 @@ import {
 import { evalScope } from './evaluate.mjs';
 import { register, Pattern, isPattern, silence, stack } from './pattern.mjs';
 import { reset_state } from './impure.mjs';
-import { SalatRepl } from '@kabelsalat/web';
 
 export function repl({
   defaultOutput,
@@ -31,7 +30,6 @@ export function repl({
   id,
   mondo = false,
 }) {
-  const kabel = new SalatRepl({ localScope: true });
   const state = {
     schedulerError: undefined,
     evalError: undefined,
@@ -89,11 +87,6 @@ export function repl({
     return silence;
   };
 
-  const compileKabel = (code) => {
-    const node = kabel.evaluate(code);
-    return node.compile({ log: false });
-  };
-
   // helper to get a patternified pure value out
   function unpure(pat) {
     if (pat._Pattern) {
@@ -123,6 +116,7 @@ export function repl({
    * Changes the global tempo to the given cycles per minute
    *
    * @name setcpm
+   * @tags temporal
    * @alias setCpm
    * @param {number} cpm cycles per minute
    * @example
@@ -136,7 +130,9 @@ export function repl({
 
   // TODO - not documented as jsdoc examples as the test framework doesn't simulate enough context for `each` and `all`..
 
-  /** Applies a function to all the running patterns. Note that the patterns are groups together into a single `stack` before the function is applied. This is probably what you want, but see `each` for
+  let allTransforms = [];
+  /**
+   * Applies a function to all the running patterns. Note that the patterns are groups together into a single `stack` before the function is applied. This is probably what you want, but see `each` for
    * a version that applies the function to each pattern separately.
    * ```
    * $: sound("bd - cp sd")
@@ -148,18 +144,21 @@ export function repl({
    * $: sound("hh*8")
    * all(x => x.pianoroll())
    * ```
+   *
+   * @tags combiners
    */
-  let allTransforms = [];
   const all = function (transform) {
     allTransforms.push(transform);
     return silence;
   };
   /** Applies a function to each of the running patterns separately. This is intended for future use with upcoming 'stepwise' features. See `all` for a version that applies the function to all the patterns stacked together into a single pattern.
+   *
    * ```
    * $: sound("bd - cp sd")
    * $: sound("hh*8")
    * each(fast("<2 3>"))
    * ```
+   * @tags combiners
    */
   const each = function (transform) {
     eachTransform = transform;
@@ -215,7 +214,6 @@ export function repl({
       setcps: setCps,
       setCpm,
       setcpm: setCpm,
-      compileKabel,
     });
   };
 

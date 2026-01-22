@@ -43,7 +43,6 @@ export const defaultSettings = {
   panelPosition: 'right',
   isPanelPinned: false,
   isPanelOpen: true,
-  togglePanelTrigger: 'click', //click | hover
   userPatterns: '{}',
   prebakeScript: '',
   audioEngineTarget: audioEngineTargets.webaudio,

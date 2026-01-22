@@ -1,5 +1,5 @@
 import cx from '@src/cx.mjs';
-import { setPanelPinned, setActiveFooter as setTab, setIsPanelOpened, useSettings } from '../../../settings.mjs';
+import { setActiveFooter as setTab, setIsPanelOpened, useSettings } from '../../../settings.mjs';
 import { ConsoleTab } from './ConsoleTab';
 import { FilesTab } from './FilesTab';
 import { Reference } from './Reference';
@@ -8,33 +8,44 @@ import { SoundsTab } from './SoundsTab';
 import { useLogger } from '../useLogger';
 import { WelcomeTab } from './WelcomeTab';
 import { PatternsTab } from './PatternsTab';
-import { ChevronLeftIcon, XMarkIcon } from '@heroicons/react/16/solid';
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/16/solid';
 import ExportTab from './ExportTab';
 
 const TAURI = typeof window !== 'undefined' && window.__TAURI__;
 
-export function HorizontalPanel({ context }) {
-  const settings = useSettings();
-  const { isPanelOpen, activeFooter: tab } = settings;
+function PanelCloseButton() {
+  const { isPanelOpen } = useSettings();
+  return (
+    isPanelOpen && (
+      <button
+        onClick={() => setIsPanelOpened(false)}
+        className={cx('px-4 py-2 text-foreground hover:opacity-50')}
+        aria-label="Close Menu"
+      >
+        <XMarkIcon className="w-6 h-6" />
+      </button>
+    )
+  );
+}
 
+export function HorizontalPanel({ context }) {
+  const { isPanelOpen, activeFooter: tab } = useSettings();
   return (
     <PanelNav
-      settings={settings}
-      className={cx(isPanelOpen ? `min-h-[360px] max-h-[360px]` : 'min-h-12 max-h-12', 'overflow-hidden flex flex-col')}
+      className={cx(
+        isPanelOpen ? `min-h-[360px] max-h-[360px]` : 'min-h-10 max-h-10',
+        'overflow-hidden flex flex-col relative ',
+      )}
     >
+      <div className="flex justify-between min-h-10 max-h-10 grid-cols-2 items-center">
+        <Tabs setTab={setTab} tab={tab} />
+        <PanelCloseButton />
+      </div>
       {isPanelOpen && (
-        <div className="flex h-full overflow-auto pr-10 ">
+        <div className="flex h-full overflow-auto w-full">
           <PanelContent context={context} tab={tab} />
         </div>
       )}
-
-      <div className="absolute right-4 pt-4">
-        <PanelActionButton settings={settings} />
-      </div>
-
-      <div className="flex  justify-between min-h-12 max-h-12 grid-cols-2 items-center">
-        <Tabs setTab={setTab} tab={tab} />
-      </div>
     </PanelNav>
   );
 }
@@ -42,36 +53,24 @@ export function HorizontalPanel({ context }) {
 export function VerticalPanel({ context }) {
   const settings = useSettings();
   const { activeFooter: tab, isPanelOpen } = settings;
-
+  if (!isPanelOpen) {
+    return;
+  }
   return (
     <PanelNav
       settings={settings}
-      className={cx(isPanelOpen ? `min-w-[min(600px,80vw)] max-w-[min(600px,80vw)]` : 'min-w-12 max-w-12')}
+      className={cx(isPanelOpen ? `min-w-[min(600px,100vw)] max-w-[min(600px,80vw)]` : 'min-w-12 max-w-12')}
     >
-      {isPanelOpen ? (
-        <div className={cx('flex flex-col h-full')}>
-          <div className="flex justify-between w-full ">
-            <Tabs setTab={setTab} tab={tab} />
-            <PanelActionButton settings={settings} />
-          </div>
-
-          <div className="overflow-auto h-full">
-            <PanelContent context={context} tab={tab} />
-          </div>
+      <div className={cx('flex flex-col h-full')}>
+        <div className="flex justify-between w-full ">
+          <Tabs setTab={setTab} tab={tab} />
+          <PanelCloseButton />
         </div>
-      ) : (
-        <button
-          onClick={(e) => {
-            setIsPanelOpened(true);
-          }}
-          aria-label="open menu panel"
-          className={cx(
-            'flex flex-col hover:bg-lineBackground items-center cursor-pointer justify-center w-full  h-full',
-          )}
-        >
-          <ChevronLeftIcon className="text-foreground opacity-50 w-6 h-6" />
-        </button>
-      )}
+
+        <div className="overflow-auto h-full">
+          <PanelContent context={context} tab={tab} />
+        </div>
+      </div>
     </PanelNav>
   );
 }
@@ -89,23 +88,13 @@ if (TAURI) {
   tabNames.files = 'files';
 }
 
-function PanelNav({ children, className, settings, ...props }) {
-  const isHoverBehavior = settings.togglePanelTrigger === 'hover';
+function PanelNav({ children, className, ...props }) {
+  const settings = useSettings();
   return (
     <nav
       onClick={() => {
         if (!settings.isPanelOpen) {
           setIsPanelOpened(true);
-        }
-      }}
-      onMouseEnter={() => {
-        if (isHoverBehavior && !settings.isPanelOpen) {
-          setIsPanelOpened(true);
-        }
-      }}
-      onMouseLeave={() => {
-        if (isHoverBehavior && !settings.isPanelPinned) {
-          setIsPanelOpened(false);
         }
       }}
       aria-label="Menu Panel"
@@ -145,7 +134,7 @@ function PanelTab({ label, isSelected, onClick }) {
       <button
         onClick={onClick}
         className={cx(
-          'h-8 px-2 text-foreground cursor-pointer hover:opacity-50 flex items-center space-x-1 border-b',
+          'h-8 px-2 text-sm text-foreground cursor-pointer hover:opacity-50 flex items-center space-x-1 border-b',
           isSelected ? 'border-foreground' : 'border-transparent',
         )}
       >
@@ -154,65 +143,34 @@ function PanelTab({ label, isSelected, onClick }) {
     </>
   );
 }
-function Tabs({ setTab, tab, className }) {
+function Tabs({ className }) {
+  const { isPanelOpen, activeFooter: tab } = useSettings();
   return (
-    <div className={cx('flex select-none max-w-full overflow-auto pb-2', className)}>
+    <div className={cx('flex select-none max-w-full overflow-auto items-center', className)}>
       {Object.keys(tabNames).map((key) => {
         const val = tabNames[key];
-        return <PanelTab key={key} isSelected={tab === val} label={key} onClick={() => setTab(val)} />;
+        return <PanelTab key={key} isSelected={tab === val && isPanelOpen} label={key} onClick={() => setTab(val)} />;
       })}
     </div>
   );
 }
 
-function PanelActionButton({ settings }) {
-  const { togglePanelTrigger, isPanelPinned, isPanelOpen } = settings;
-  const isHoverBehavior = togglePanelTrigger === 'hover';
-  if (!isPanelOpen) {
-    return;
-  }
-
-  if (isHoverBehavior) {
-    return <PinButton pinned={isPanelPinned} />;
-  }
-  return <CloseButton onClick={() => setIsPanelOpened(false)} />;
-}
-
-function PinButton({ pinned }) {
+export function PanelToggle({ isEmbedded, isZen }) {
+  const { panelPosition, isPanelOpen } = useSettings();
   return (
-    <button
-      onClick={() => setPanelPinned(!pinned)}
-      className={cx(
-        'text-foreground max-h-8 min-h-8 max-w-8 min-w-8 items-center justify-center p-1.5 group-hover:flex',
-        pinned ? 'flex' : 'hidden',
-      )}
-      aria-label="Pin Menu Panel"
-    >
-      <svg
-        stroke="currentColor"
-        fill={'currentColor'}
-        strokeWidth="0"
-        className="w-full h-full"
-        opacity={pinned ? 1 : '.3'}
-        viewBox="0 0 16 16"
-        xmlns="http://www.w3.org/2000/svg"
+    !isEmbedded &&
+    !isZen &&
+    panelPosition === 'right' && (
+      <button
+        title="share"
+        className={cx(
+          'absolute top-0 right-3  rounded-0  px-2 py-2 bg-background z-[1000] cursor-pointer hover:opacity-80 flex justify-center items-center space-x-1 text-foreground ',
+          isPanelOpen && 'hidden',
+        )}
+        onClick={() => setIsPanelOpened(!isPanelOpen)}
       >
-        <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a6 6 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-1.219.902-1.414.707s.512-1.22.707-1.414l3.182-3.182-2.828-2.829a.5.5 0 0 1 0-.707c.688-.688 1.673-.767 2.375-.72a6 6 0 0 1 1.013.16l3.134-3.133a3 3 0 0 1-.04-.461c0-.43.108-1.022.589-1.503a.5.5 0 0 1 .353-.146"></path>
-      </svg>
-    </button>
-  );
-}
-
-function CloseButton({ onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cx(
-        'text-foreground max-h-8 min-h-8 max-w-8 min-w-8 items-center justify-center p-1.5 group-hover:flex',
-      )}
-      aria-label="Close Menu"
-    >
-      <XMarkIcon />
-    </button>
+        <Bars3Icon className="w-6 h-6" />
+      </button>
+    )
   );
 }

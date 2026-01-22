@@ -40,6 +40,7 @@ export let maxPolyphony = DEFAULT_MAX_POLYPHONY;
  * start to die out in first-in-first-out order once the max polyphony has been hit
  *
  * @name setMaxPolyphony
+ * @tags fx, superdough
  * @param {number} Max polyphony. Defaults to 128
  * @example
  * setMaxPolyphony(4)
@@ -73,6 +74,7 @@ export function applyGainCurve(val) {
  * quadratic, exponential, etc. rather than linear
  *
  * @name setGainCurve
+ * @tags fx, superdough
  * @param {Function} function to apply to all gain values
  * @example
  * setGainCurve((x) => x * x) // quadratic gain
@@ -128,6 +130,8 @@ async function aliasBankPath(path) {
  * Optionally accepts a single argument string of a path to a JSON file containing bank aliases.
  * @param {string} bank - The bank to alias
  * @param {string} alias - The alias to use for the bank
+ *
+ * @tags samples
  */
 export async function aliasBank(...args) {
   switch (args.length) {
@@ -146,6 +150,7 @@ export async function aliasBank(...args) {
 
 /**
  * Register an alias for a sound.
+ * @tags samples
  * @param {string} original - The original sound name
  * @param {string} alias - The alias to use for the sound
  */
@@ -255,6 +260,14 @@ export function loadWorklets() {
   return workletsLoading;
 }
 
+let kabel;
+async function initKabelsalat() {
+  const { SalatRepl } = await import('@kabelsalat/web');
+  logger('[kabelsalat] ready');
+  kabel = new SalatRepl({ localScope: true });
+  return kabel;
+}
+
 // this function should be called on first user interaction (to avoid console warning)
 export async function initAudio(options = {}) {
   const {
@@ -301,6 +314,7 @@ export async function initAudio(options = {}) {
   } catch (err) {
     console.warn('could not load AudioWorklet effects', err);
   }
+  await initKabelsalat();
   logger('[superdough] ready');
 }
 let audioReady;
@@ -435,6 +449,14 @@ class Chain {
     this.tails = [];
   }
 }
+
+const compileKabel = (code) => {
+  if (!kabel) {
+    throw new Error('kabelsalat not loaded');
+  }
+  const node = kabel.evaluate(code);
+  return node.compile({ log: false });
+};
 
 export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) => {
   // mapping from main FX and numbered FX chains to nodes

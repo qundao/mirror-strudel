@@ -1,10 +1,7 @@
-import PlayCircleIcon from '@heroicons/react/20/solid/PlayCircleIcon';
 import cx from '@src/cx.mjs';
-import NumberInput from '@src/repl/components/NumberInput';
-import { useEffect, useState } from 'react';
-import { Textbox } from '../textbox/Textbox';
+import { useState } from 'react';
+import { Textbox } from '@src/repl/components/panel/SettingsTab';
 import { getAudioContext } from '@strudel/webaudio';
-import XMarkIcon from '@heroicons/react/24/outline/XMarkIcon';
 
 function Checkbox({ label, value, onChange, disabled = false }) {
   return (
