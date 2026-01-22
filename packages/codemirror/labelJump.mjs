@@ -1,5 +1,6 @@
 import { EditorSelection } from '@codemirror/state';
 import { SearchCursor } from '@codemirror/search';
+import { EditorView } from '@codemirror/view';
 
 const COMMENT_STRING = '//';
 
@@ -49,7 +50,10 @@ export function jumpToCharacter(view, character, num) {
   const selection = EditorSelection.cursor(pos - 1);
   dispatch({
     selection,
-    scrollIntoView: true,
+    effects: EditorView.scrollIntoView(
+      selection.head,
+      {y: "center"}
+    )
   });
   return true;
 }
