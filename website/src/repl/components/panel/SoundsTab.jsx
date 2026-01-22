@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { settingsMap, soundFilterType, useSettings } from '../../../settings.mjs';
 import { ButtonGroup } from './Forms.jsx';
 import ImportSoundsButton from './ImportSoundsButton.jsx';
-import { Textbox } from '../textbox/Textbox.jsx';
+import { Textbox } from '@src/repl/components/panel/SettingsTab.jsx';
 import { ActionButton } from '../button/action-button.jsx';
 import { confirmDialog } from '@src/repl/util.mjs';
 import { clearIDB, userSamplesDBConfig } from '@src/repl/idbutils.mjs';

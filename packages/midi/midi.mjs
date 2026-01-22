@@ -138,6 +138,7 @@ function githubPath(base, subpath = '') {
 
 /**
  * configures the default midimap, which is used when no "midimap" port is set
+ * @tags external_io
  * @example
  * defaultmidimap({ lpf: 74 })
  * $: note("c a f e").midi();
@@ -151,6 +152,7 @@ let loadCache = {};
 
 /**
  * Adds midimaps to the registry. Inside each midimap, control names (e.g. lpf) are mapped to cc numbers.
+ * @tags external_io
  * @example
  * midimaps({ mymap: { lpf: 74 } })
  * $: note("c a f e")
@@ -305,6 +307,7 @@ function sendNote(note, velocity, duration, device, midichan, targetTime) {
 
 /**
  * MIDI output: Opens a MIDI output port.
+ * @tags external_io
  * @param {string | number} midiport MIDI device name or index defaulting to 0
  * @param {object} options Additional MIDI configuration options
  * @example
@@ -526,6 +529,7 @@ async function _initialize(input) {
  * The output is a function that accepts a midi cc value to query as well as (optionally) a midi channel
  *
  * @name midin
+ * @tags external_io
  * @param {string | number} input MIDI device name or index defaulting to 0
  * @returns {function(number, number=): Pattern} A function from (cc, channel?) to a pattern.
  *   When queried, the pattern will produces the most recently received midi value (normalized to 0 to 1)
@@ -573,6 +577,7 @@ export async function midin(input) {
  * note durations
  *
  * @name midikeys
+ * @tags external_io
  * @param {string | number} input MIDI device name or index defaulting to 0
  * @returns {function((number | Pattern)=): Pattern} A function that produces a pattern.
  *   When queried, the pattern will produces the most recently played midi notes and velocities,

@@ -489,6 +489,7 @@ function s4() {
 /**
  * Overrides the css of highlighted events. Make sure to use single quotes!
  * @name markcss
+ * @tag visualization
  * @example
  * note("c a f e")
  * .markcss('text-decoration:underline')
