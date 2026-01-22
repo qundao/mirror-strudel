@@ -24,7 +24,12 @@ import { sliderPlugin, updateSliderWidgets } from './slider.mjs';
 import { activateTheme, initTheme, theme } from './themes.mjs';
 import { isTooltipEnabled } from './tooltip.mjs';
 import { updateWidgets, widgetPlugin } from './widget.mjs';
-import { jumpToCharacter } from './labelJump.mjs';
+import {
+  deleteAllInlineBeforeCharacter,
+  jumpToCharacter,
+  jumpToNextCharacter,
+  ToggleCharBeforeChar,
+} from './labelJump.mjs';
 
 export { toggleBlockComment, toggleBlockCommentByLine, toggleComment, toggleLineComment } from '@codemirror/commands';
 
@@ -74,6 +79,10 @@ export const codemirrorSettings = persistentAtom('codemirror-settings', defaultS
   decode: JSON.parse,
 });
 
+const ANON_LABEL = '$';
+const SOLO_LABEL = 'S';
+const MUTE_LABEL = '_';
+
 // https://codemirror.net/docs/guide/
 export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, root, mondo }) {
   const settings = codemirrorSettings.get();
@@ -122,12 +131,58 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
           },
           {
             key: 'Alt-w',
-            run: (view) => jumpToCharacter(view, '$', 1),
+            run: (view) => jumpToNextCharacter(view, ANON_LABEL, 1),
           },
           {
             key: 'Alt-q',
-            run: (view) => jumpToCharacter(view, '$', -1),
+            run: (view) => {
+              return jumpToNextCharacter(view, ANON_LABEL, -1);
+            },
           },
+          // clear all muted
+          {
+            key: `Alt-Ctrl-0`,
+            run: (view) => {
+              return deleteAllInlineBeforeCharacter(view, MUTE_LABEL + ANON_LABEL);
+            },
+          },
+          // clear all solod
+          {
+            key: `Alt-Shift-0`,
+            run: (view) => {
+              return deleteAllInlineBeforeCharacter(view, SOLO_LABEL + ANON_LABEL);
+            },
+          },
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Alt-${num}`,
+              run: (view) => {
+                return jumpToCharacter(view, ANON_LABEL, i);
+              },
+            };
+          }),
+          // handle solo toggles 1-9
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Alt-Shift-${num}`,
+              run: (view) => {
+                return ToggleCharBeforeChar(view, ANON_LABEL, SOLO_LABEL, i);
+              },
+            };
+          }),
+          // handle mute toggles 1-9
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Alt-Ctrl-${num}`,
+              run: (view) => {
+                return ToggleCharBeforeChar(view, ANON_LABEL, MUTE_LABEL, i);
+              },
+            };
+          }),
+
           /* {
             key: 'Ctrl-Shift-.',
             run: () => (onPanic ? onPanic() : onStop?.()),
