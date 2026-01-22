@@ -1,6 +1,7 @@
 import { EditorSelection } from '@codemirror/state';
 import { SearchCursor } from '@codemirror/search';
-import { EditorView } from '@codemirror/view';
+
+const COMMENT_STRING = '//';
 
 function getCharacterPositions(state, character) {
   const cursor = new SearchCursor(state.doc, character);
@@ -11,27 +12,6 @@ function getCharacterPositions(state, character) {
   return characterPositions;
 }
 
-// function jumpToNextCharacter(view,character, direction = 1){
-//     const { state, dispatch } = view;
-//   const pos = state.selection.main.head;
-//   let jumpPos;
-//   const characterPositions = getCharacterPositions(state, character)
-//   if (!characterPositions.length) {
-//     return false;
-//   }
-//   if (direction > 0) {
-//     jumpPos = characterPositions.find((x) => x > pos + 1) ?? characterPositions.at(0); // Loop back around for convenience
-//   } else {
-//     jumpPos = characterPositions.reverse().find((x) => x < pos + 1) ?? characterPositions.at(0);
-//   }
-
-//   if (jumpPos == null) {
-//     return false;
-//   }
-//   const selection =  EditorSelection.cursor(jumpPos - 1);
-// }
-
-const COMMENT_STRING = '//';
 export function jumpToNextCharacter(view, character, direction = 1) {
   const { state, dispatch } = view;
   const pos = state.selection.main.head;
