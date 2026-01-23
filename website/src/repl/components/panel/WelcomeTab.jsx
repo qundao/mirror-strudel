@@ -6,7 +6,7 @@ const baseNoTrailing = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL
 export function WelcomeTab({ context }) {
   const { fontFamily } = useSettings();
   return (
-    <div className="prose dark:prose-invert min-w-full pt-2 font-sans pb-8 px-4 " style={{ fontFamily }}>
+    <div className="prose dark:prose-invert min-w-full py-4 font-sans px-4 text-sm" style={{ fontFamily }}>
       <h3>welcome</h3>
       <p>
         You have found <span className="underline">strudel</span>, a new live coding platform to write dynamic music

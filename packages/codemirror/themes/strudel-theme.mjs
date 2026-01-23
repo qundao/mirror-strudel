@@ -5,7 +5,7 @@ export const settings = {
   background: '#222',
   lineBackground: '#22222299',
   foreground: '#fff',
-  muted: '#ffffff50',
+  muted: '#8a919966',
   caret: '#ffcc00',
   selection: 'rgba(128, 203, 196, 0.5)',
   selectionMatch: '#036dd626',
