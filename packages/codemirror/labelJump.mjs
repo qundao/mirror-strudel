@@ -57,6 +57,7 @@ export function jumpToCharacter(view, character, num) {
   });
   return true;
 }
+
 export function deleteAllInlineBeforeCharacter(view, character) {
   const { state, dispatch } = view;
   const characterPositions = getCharacterPositions(state, character);
@@ -64,7 +65,7 @@ export function deleteAllInlineBeforeCharacter(view, character) {
   const changes = [];
   characterPositions.forEach((pos) => {
     const line = state.doc.lineAt(pos);
-    if (state.doc.sliceString(line.from, line.from + 1) === COMMENT_STRING) {
+    if (state.doc.sliceString(line.from, line.from + 2) === COMMENT_STRING) {
       return;
     }
     changes.push({
@@ -84,7 +85,7 @@ export function ToggleCharBeforeChar(view, character, character2, num) {
   const labelpos = characterPositions.at(num) ?? characterPositions.at(-1);
   const line = state.doc.lineAt(labelpos);
 
-  if (state.doc.sliceString(line.from, line.from + 1) === COMMENT_STRING) {
+  if (state.doc.sliceString(line.from, line.from + 2) === COMMENT_STRING) {
     return false;
   }
   //delete preceeding characters
@@ -101,6 +102,32 @@ export function ToggleCharBeforeChar(view, character, character2, num) {
       from: line.from,
     });
   }
+
+  dispatch({ changes });
+  return true;
+}
+export function InsertCharBeforeChar(view, character, character2, num) {
+  const { state, dispatch } = view;
+
+  const changes = [];
+  const characterPositions = getCharacterPositions(state, character);
+  const labelpos = characterPositions.at(num) ?? characterPositions.at(-1);
+  const line = state.doc.lineAt(labelpos);
+
+  if (state.doc.sliceString(line.from, line.from + 2) === COMMENT_STRING) {
+    return false;
+  }
+  //delete preceeding characters
+  changes.push({
+    from: line.from,
+    to: labelpos - 1,
+    insert: '',
+  });
+
+  changes.push({
+      insert: character2,
+      from: line.from,
+  });
 
   dispatch({ changes });
   return true;

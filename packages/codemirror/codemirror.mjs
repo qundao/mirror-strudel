@@ -26,6 +26,7 @@ import { isTooltipEnabled } from './tooltip.mjs';
 import { updateWidgets, widgetPlugin } from './widget.mjs';
 import {
   deleteAllInlineBeforeCharacter,
+  InsertCharBeforeChar,
   jumpToCharacter,
   jumpToNextCharacter,
   ToggleCharBeforeChar,
@@ -153,6 +154,13 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
               return deleteAllInlineBeforeCharacter(view, SOLO_LABEL + ANON_LABEL);
             },
           },
+          // clear all solo and mute
+          {
+            key: `Ctrl-Shift-0`,
+            run: (view) => {
+              return deleteAllInlineBeforeCharacter(view, SOLO_LABEL);
+            },
+          },
           ...Array.from({ length: 9 }).map((_, i) => {
             let num = i + 1;
             return {
@@ -168,7 +176,7 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
             return {
               key: `Alt-Shift-${num}`,
               run: (view) => {
-                return ToggleCharBeforeChar(view, ANON_LABEL, SOLO_LABEL, i);
+                return InsertCharBeforeChar(view, ANON_LABEL, SOLO_LABEL, i);
               },
             };
           }),
@@ -178,7 +186,17 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
             return {
               key: `Alt-Ctrl-${num}`,
               run: (view) => {
-                return ToggleCharBeforeChar(view, ANON_LABEL, MUTE_LABEL, i);
+                return InsertCharBeforeChar(view, ANON_LABEL, MUTE_LABEL, i);
+              },
+            };
+          }),
+          // Handle clearing mutes and solos 1-9
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Ctrl-Shift-${num}`,
+              run: (view) => {
+                return InsertCharBeforeChar(view, ANON_LABEL,'', i);
               },
             };
           }),
