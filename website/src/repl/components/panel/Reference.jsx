@@ -38,7 +38,7 @@ const availableFunctions = (() => {
 })();
 
 const tagCounts = {};
-const ignoredTags = ['supradough', 'superdirt'];
+const ignoredTags = ['supradough', 'superdirt', 'dough'];
 // const tagOptions = { all: `all (${availableFunctions.length})` };
 const tagOptions = { all: `all` };
 for (const doc of availableFunctions) {
