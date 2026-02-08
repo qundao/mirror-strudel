@@ -29,7 +29,6 @@ import {
   InsertCharBeforeChar,
   jumpToCharacter,
   jumpToNextCharacter,
-  ToggleCharBeforeChar,
 } from './labelJump.mjs';
 
 export { toggleBlockComment, toggleBlockCommentByLine, toggleComment, toggleLineComment } from '@codemirror/commands';
@@ -158,7 +157,7 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
           {
             key: `Ctrl-Shift-0`,
             run: (view) => {
-              return deleteAllInlineBeforeCharacter(view, SOLO_LABEL);
+              return deleteAllInlineBeforeCharacter(view, ANON_LABEL);
             },
           },
           ...Array.from({ length: 9 }).map((_, i) => {

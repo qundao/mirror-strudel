@@ -1,25 +1,54 @@
 import { EditorSelection } from '@codemirror/state';
 import { SearchCursor } from '@codemirror/search';
 import { EditorView } from '@codemirror/view';
+import { syntaxTree } from '@codemirror/language';
 
-const COMMENT_STRING = '//';
-
+/**
+ * gets all of the positions of a character in a document, excluding commented out lines
+ * @param { EditorState} state 
+ * @param {String} character 
+ * @returns {number[]}
+ */
 function getCharacterPositions(state, character) {
   const cursor = new SearchCursor(state.doc, character);
+ 
   const characterPositions = [];
   while (!cursor.next().done) {
-    characterPositions.push(cursor.value.to);
+
+    const linestartpos = state.doc.lineAt(cursor.value.to).from
+    if (!isLineCommentedOut(state, linestartpos)) {
+
+      characterPositions.push(cursor.value.to);
+    }
   }
   return characterPositions;
 }
 
+function isLineCommentedOut(state, pos) {
+
+  const line = state.doc.lineAt(pos);
+  // remove white space
+  pos = line.from + line.text.search(/\S/)
+
+  const tree = syntaxTree(state);
+  const node = tree.resolveInner(pos, 1)
+  return node.name.includes("Comment")
+}
+
+/**
+ * jump to the next character in a document
+ * @param {EditorView} view 
+ * @param {String} character 
+ * @param {number} direction 0 or 1
+ * @returns {boolean}
+ */
 export function jumpToNextCharacter(view, character, direction = 1) {
   const { state, dispatch } = view;
   const pos = state.selection.main.head;
   let jumpPos;
   const characterPositions = getCharacterPositions(state, character);
   if (!characterPositions.length) {
-    return false;
+    return true;
   }
   if (direction > 0) {
     jumpPos = characterPositions.find((x) => x > pos + 1) ?? characterPositions.at(0); // Loop back around for convenience
@@ -28,23 +57,31 @@ export function jumpToNextCharacter(view, character, direction = 1) {
   }
 
   if (jumpPos == null) {
-    return false;
+    return true;
   }
   const selection = EditorSelection.cursor(jumpPos - 1);
   dispatch({
     selection,
-    scrollIntoView: true,
-    sequential: true,
+    effects: EditorView.scrollIntoView(
+      selection.head,
+      { y: "start" }
+    )
   });
   return true;
 }
-
-export function jumpToCharacter(view, character, num) {
+/**
+ * 
+ * @param {EditorView} view 
+ * @param {String} character 
+ * @param {number} index the instance of the character  
+ * @returns 
+ */
+export function jumpToCharacter(view, character, index) {
   const { state, dispatch } = view;
   const characterPositions = getCharacterPositions(state, character);
-  const pos = characterPositions.at(num) ?? characterPositions.at(-1);
+  const pos = characterPositions.at(index) ?? characterPositions.at(-1);
   if (pos == null) {
-    return false;
+    return true;
   }
 
   const selection = EditorSelection.cursor(pos - 1);
@@ -52,12 +89,17 @@ export function jumpToCharacter(view, character, num) {
     selection,
     effects: EditorView.scrollIntoView(
       selection.head,
-      {y: "center"}
+      { y: "start" }
     )
   });
   return true;
 }
-
+/**
+ * 
+ * @param {EditorView} view 
+ * @param {String} character 
+ * @returns {true}
+ */
 export function deleteAllInlineBeforeCharacter(view, character) {
   const { state, dispatch } = view;
   const characterPositions = getCharacterPositions(state, character);
@@ -77,46 +119,23 @@ export function deleteAllInlineBeforeCharacter(view, character) {
   dispatch({ changes });
   return true;
 }
-export function ToggleCharBeforeChar(view, character, character2, num) {
+
+/**
+ * 
+ * @param {EditorView} view 
+ * @param {String} character 
+ * @param {String} character2 
+ * @param {number} index 
+ * @returns 
+ */
+export function InsertCharBeforeChar(view, character, character2, index) {
   const { state, dispatch } = view;
 
   const changes = [];
   const characterPositions = getCharacterPositions(state, character);
-  const labelpos = characterPositions.at(num) ?? characterPositions.at(-1);
+  const labelpos = characterPositions.at(index) ?? characterPositions.at(-1);
   const line = state.doc.lineAt(labelpos);
 
-  if (state.doc.sliceString(line.from, line.from + 2) === COMMENT_STRING) {
-    return false;
-  }
-  //delete preceeding characters
-  changes.push({
-    from: line.from,
-    to: labelpos - 1,
-    insert: '',
-  });
-
-  const preceedingLabelPos = labelpos - 2;
-  if (line.from === labelpos - 1 || state.doc.sliceString(preceedingLabelPos, labelpos - 1) !== character2) {
-    changes.push({
-      insert: character2,
-      from: line.from,
-    });
-  }
-
-  dispatch({ changes });
-  return true;
-}
-export function InsertCharBeforeChar(view, character, character2, num) {
-  const { state, dispatch } = view;
-
-  const changes = [];
-  const characterPositions = getCharacterPositions(state, character);
-  const labelpos = characterPositions.at(num) ?? characterPositions.at(-1);
-  const line = state.doc.lineAt(labelpos);
-
-  if (state.doc.sliceString(line.from, line.from + 2) === COMMENT_STRING) {
-    return false;
-  }
   //delete preceeding characters
   changes.push({
     from: line.from,
@@ -125,8 +144,8 @@ export function InsertCharBeforeChar(view, character, character2, num) {
   });
 
   changes.push({
-      insert: character2,
-      from: line.from,
+    insert: character2,
+    from: line.from,
   });
 
   dispatch({ changes });
