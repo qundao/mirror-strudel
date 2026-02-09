@@ -1,4 +1,4 @@
-import { getBaseURL, getCommonSampleInfo, noteToFreq } from './util.mjs';
+import { BASE_MIDI_NOTE, getBaseURL, getCommonSampleInfo, noteToFreq, noteToMidi } from './util.mjs';
 import { registerSound, registerWaveTable } from './index.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import {
@@ -34,10 +34,8 @@ function humanFileSize(bytes, si) {
 function getSampleInfo(hapValue, bank) {
   const { speed = 1.0 } = hapValue;
   const { transpose, url, index, midi, label, baseFrequency } = getCommonSampleInfo(hapValue, bank);
-  const relativeBaseFreq = noteToFreq('C');
 
-  const frequencyAdjustment = relativeBaseFreq / baseFrequency;
-  const playbackRate = (Math.abs(speed) * Math.pow(2, transpose / 12)) * frequencyAdjustment;
+  const playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
   return { transpose, url, index, midi, label, playbackRate };
 }
 
@@ -160,7 +158,7 @@ export const processSampleMap = (sampleMap, fn, baseUrl = sampleMap._base || '')
     if (baseUrl.startsWith('github:')) {
       baseUrl = githubPath(baseUrl, '');
     }
-    const fullUrl = (v) => baseUrl + v;
+    const fullUrl = (v) => ({ url: baseUrl + v, midi: extractMidiNoteFromString(v) });
     if (Array.isArray(value)) {
       //return [key, value.map(replaceUrl)];
       value = value.map(fullUrl);
@@ -364,7 +362,6 @@ function registerSample(key, bank, params) {
 }
 
 export function registerSampleSource(key, bank, params) {
-
   const isWavetable = key.startsWith('wt_');
   if (isWavetable) {
     registerWaveTable(key, bank, params);
@@ -373,22 +370,15 @@ export function registerSampleSource(key, bank, params) {
   }
 }
 
-function extractNoteFromString(str) {
+export function extractMidiNoteFromString(str) {
   const regex = /_([a-gA-G])([#b])?([1-9])?\b/;
   const match = str.match(regex);
   if (match == null) {
-    return { note: "C", base: "C", accidental: undefined, octave: 3 }
+    return BASE_MIDI_NOTE;
   }
   const base = match[1].toUpperCase();
-  const accidental = match[2] ?? ""
-  const octave_str = match[3] ?? "";
-  const octave = Number(octave_str)
-  return { note: base + accidental + octave_str, base, accidental, octave }
-
-}
-
-
-export function extractBaseFrequencyFromString(str) {
-  const { note } = extractNoteFromString(str);
-  return noteToFreq(note)
+  const accidental = match[2] ?? '';
+  const octave_str = match[3] ?? '';
+  const parsedVal = base + accidental + octave_str;
+  return noteToMidi(parsedVal);
 }

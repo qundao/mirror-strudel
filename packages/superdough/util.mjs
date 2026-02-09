@@ -3,10 +3,10 @@ import { logger } from './logger.mjs';
 // currently duplicate with core util.mjs to skip dependency
 // TODO: add separate util module?
 /**
- * 
- * @typedef {Object} SampleMetaData 
- * @property {string} url 
- * @property {baseFrequency} number 
+ *
+ * @typedef {Object} SampleMetaData
+ * @property {string} url
+ * @property {baseFrequency} number
  */
 export const tokenizeNote = (note) => {
   if (typeof note !== 'string') {
@@ -25,9 +25,9 @@ export const getAccidentalsOffset = (accidentals) => {
   return accidentals?.split('').reduce((o, char) => o + accs[char], 0) || 0;
 };
 /**
- * 
- * @param {string} note 
- * @param {number} defaultOctave 
+ *
+ * @param {string} note
+ * @param {number} defaultOctave
  * @returns {number}
  */
 export const noteToMidi = (note, defaultOctave = 3) => {
@@ -40,8 +40,8 @@ export const noteToMidi = (note, defaultOctave = 3) => {
   return (Number(oct) + 1) * 12 + chroma + offset;
 };
 /**
- * 
- * @param {number} n 
+ *
+ * @param {number} n
  * @returns {number}
  */
 export const midiToFreq = (n) => {
@@ -49,24 +49,22 @@ export const midiToFreq = (n) => {
 };
 export const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
 
-
 export const freqToMidi = (freq) => {
   return (12 * Math.log(freq / 440)) / Math.LN2 + 69;
 };
 
 /**
- * 
- * @param {string} note 
- * @param {number} defaultOctave 
+ *
+ * @param {string} note
+ * @param {number} defaultOctave
  * @returns {number}
  */
 
 export const noteToFreq = (note, defaultOctave = 3) => {
-  return midiToFreq(noteToMidi(note, defaultOctave))
-
-}
+  return midiToFreq(noteToMidi(note, defaultOctave));
+};
 function __valueToMidi(value) {
-    if (typeof value !== 'object') {
+  if (typeof value !== 'object') {
     throw new Error('valueToMidi: expected object value');
   }
   let { freq, note } = value;
@@ -79,7 +77,7 @@ function __valueToMidi(value) {
   if (typeof note === 'number') {
     return note;
   }
-  return
+  return;
 }
 
 export const valueToMidi = (value, fallbackValue) => {
@@ -87,7 +85,7 @@ export const valueToMidi = (value, fallbackValue) => {
   if (parsedValue == null) {
     throw new Error('valueToMidi: expected freq or note to be set');
   }
-  return parsedValue
+  return parsedValue;
 };
 
 export function nanFallback(value, fallback = 0, silent) {
@@ -116,15 +114,18 @@ export function secondsToCycle(t, cps) {
 // deduces relevant info for sample loading from hap.value and sample definition
 // it encapsulates the core sampler logic into a pure and synchronous function
 // hapValue: Hap.value, bank: sample bank definition for sound "s" (values in strudel.json format)
+export const BASE_MIDI_NOTE = 36;
+
 export function getCommonSampleInfo(hapValue, bank) {
   const { s, n = 0 } = hapValue;
-  let midi = valueToMidi(hapValue, 36);
-  let transpose = midi - 36; // C3 is middle C;
+  const maybeMidiNote = __valueToMidi(hapValue);
+  const midi = maybeMidiNote ?? BASE_MIDI_NOTE;
+  let transpose = midi - BASE_MIDI_NOTE; // C3 is middle C;
   let index = 0;
   let samplemeta;
   if (Array.isArray(bank)) {
     index = getSoundIndex(n, bank.length);
-    samplemeta = bank[index]
+    samplemeta = bank[index];
   } else {
     const midiDiff = (noteA) => noteToMidi(noteA) - midi;
     // object format will expect keys as notes
@@ -136,13 +137,14 @@ export function getCommonSampleInfo(hapValue, bank) {
       );
     transpose = -midiDiff(closest); // semitones to repitch
     index = getSoundIndex(n, bank[closest].length);
-    samplemeta = bank[closest][index]; 
+    samplemeta = bank[closest][index];
   }
   const label = `${s}:${index}`;
+  if (maybeMidiNote != null) {
+    transpose = transpose + (BASE_MIDI_NOTE - samplemeta.midi);
+  }
 
-
-  
-  return { transpose, index, midi, label, ...samplemeta };
+  return { transpose, index, midi, label, url: samplemeta.url };
 }
 
 /** Selects entries from `source` and renames them via `map`

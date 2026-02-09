@@ -1,4 +1,4 @@
-import { extractBaseFrequencyFromString, registerSampleSource } from '@strudel/webaudio';
+import { extractMidiNoteFromString, registerSampleSource } from '@strudel/webaudio';
 import { isAudioFile } from './files.mjs';
 import { logger } from '@strudel/core';
 
@@ -28,7 +28,7 @@ export function clearIDB(dbName) {
 }
 
 // queries the DB, and registers the sounds so they can be played
-export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete = () => { }) {
+export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete = () => {}) {
   openDB(config, (objectStore) => {
     const query = objectStore.getAll();
     query.onerror = (e) => {
@@ -60,8 +60,8 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
 
             return blobToDataUrl(blob).then((path) => {
               const sampleInfoMap = sounds.get(parentDirectory) ?? new Map();
-              const baseFrequency = extractBaseFrequencyFromString(title)
-              sampleInfoMap.set(title, { url: path, baseFrequency });
+              const midi = extractMidiNoteFromString(title);
+              sampleInfoMap.set(title, { url: path, midi });
 
               sounds.set(parentDirectory, sampleInfoMap);
               return;
