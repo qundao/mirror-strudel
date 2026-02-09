@@ -61,7 +61,9 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
             return blobToDataUrl(blob).then((path) => {
               const sampleInfoMap = sounds.get(parentDirectory) ?? new Map();
               const midi = extractMidiNoteFromString(title);
-              sampleInfoMap.set(title, { url: path, midi });
+              /** @type {import('@strudel/webaudio').SampleMetaData} */
+              const samplemetadata = { url: path, midi };
+              sampleInfoMap.set(title, samplemetadata);
 
               sounds.set(parentDirectory, sampleInfoMap);
               return;

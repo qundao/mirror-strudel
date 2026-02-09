@@ -2,12 +2,7 @@ import { logger } from './logger.mjs';
 
 // currently duplicate with core util.mjs to skip dependency
 // TODO: add separate util module?
-/**
- *
- * @typedef {Object} SampleMetaData
- * @property {string} url
- * @property {baseFrequency} number
- */
+
 export const tokenizeNote = (note) => {
   if (typeof note !== 'string') {
     return [];

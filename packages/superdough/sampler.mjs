@@ -10,10 +10,16 @@ import {
   releaseAudioNode,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
-import { note2midi } from 'node_modules/@strudel/tonal/tonleiter.mjs';
 
 const bufferCache = {}; // string: Promise<ArrayBuffer>
 const loadCache = {}; // string: Promise<ArrayBuffer>
+
+/**
+ *
+ * @typedef {Object} SampleMetaData
+ * @property {string} url
+ * @property {midi} number
+ */
 
 export const getCachedBuffer = (url) => bufferCache[url];
 
@@ -158,6 +164,11 @@ export const processSampleMap = (sampleMap, fn, baseUrl = sampleMap._base || '')
     if (baseUrl.startsWith('github:')) {
       baseUrl = githubPath(baseUrl, '');
     }
+    /**
+     *
+     * @param {string} v
+     * @returns {SampleMetaData}
+     */
     const fullUrl = (v) => ({ url: baseUrl + v, midi: extractMidiNoteFromString(v) });
     if (Array.isArray(value)) {
       //return [key, value.map(replaceUrl)];
