@@ -1,4 +1,4 @@
-import { getBaseURL, getCommonSampleInfo } from './util.mjs';
+import { getBaseURL, getCommonSampleInfo, noteToFreq } from './util.mjs';
 import { registerSound, registerWaveTable } from './index.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import {
@@ -10,6 +10,7 @@ import {
   releaseAudioNode,
 } from './helpers.mjs';
 import { logger } from './logger.mjs';
+import { note2midi } from 'node_modules/@strudel/tonal/tonleiter.mjs';
 
 const bufferCache = {}; // string: Promise<ArrayBuffer>
 const loadCache = {}; // string: Promise<ArrayBuffer>
@@ -30,10 +31,13 @@ function humanFileSize(bytes, si) {
   return bytes.toFixed(1) + ' ' + units[u];
 }
 
-export function getSampleInfo(hapValue, bank) {
+function getSampleInfo(hapValue, bank) {
   const { speed = 1.0 } = hapValue;
-  const { transpose, url, index, midi, label } = getCommonSampleInfo(hapValue, bank);
-  let playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
+  const { transpose, url, index, midi, label, baseFrequency } = getCommonSampleInfo(hapValue, bank);
+  const relativeBaseFreq = noteToFreq('C');
+
+  const frequencyAdjustment = relativeBaseFreq / baseFrequency;
+  const playbackRate = (Math.abs(speed) * Math.pow(2, transpose / 12)) * frequencyAdjustment;
   return { transpose, url, index, midi, label, playbackRate };
 }
 
@@ -360,10 +364,31 @@ function registerSample(key, bank, params) {
 }
 
 export function registerSampleSource(key, bank, params) {
+
   const isWavetable = key.startsWith('wt_');
   if (isWavetable) {
     registerWaveTable(key, bank, params);
   } else {
     registerSample(key, bank, params);
   }
+}
+
+function extractNoteFromString(str) {
+  const regex = /_([a-gA-G])([#b])?([1-9])?\b/;
+  const match = str.match(regex);
+  if (match == null) {
+    return { note: "C", base: "C", accidental: undefined, octave: 3 }
+  }
+  const base = match[1].toUpperCase();
+  const accidental = match[2] ?? ""
+  const octave_str = match[3] ?? "";
+  const octave = Number(octave_str)
+  return { note: base + accidental + octave_str, base, accidental, octave }
+
+}
+
+
+export function extractBaseFrequencyFromString(str) {
+  const { note } = extractNoteFromString(str);
+  return noteToFreq(note)
 }

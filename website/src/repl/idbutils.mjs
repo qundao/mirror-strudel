@@ -1,4 +1,4 @@
-import { registerSampleSource } from '@strudel/webaudio';
+import { extractBaseFrequencyFromString, registerSampleSource } from '@strudel/webaudio';
 import { isAudioFile } from './files.mjs';
 import { logger } from '@strudel/core';
 
@@ -28,7 +28,7 @@ export function clearIDB(dbName) {
 }
 
 // queries the DB, and registers the sounds so they can be played
-export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete = () => {}) {
+export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete = () => { }) {
   openDB(config, (objectStore) => {
     const query = objectStore.getAll();
     query.onerror = (e) => {
@@ -47,7 +47,7 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
       Promise.all(
         [...soundFiles]
           .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
-          .map((soundFile, i) => {
+          .map((soundFile) => {
             const title = soundFile.title;
             if (!isAudioFile(title)) {
               return;
@@ -58,25 +58,24 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
               splitRelativePath[splitRelativePath.length - 2] ?? soundFile.id.split(/\W+/)[0] ?? 'user';
             const blob = soundFile.blob;
 
-            return blobToDataUrl(blob).then((soundPath) => {
-              const titlePathMap = sounds.get(parentDirectory) ?? new Map();
+            return blobToDataUrl(blob).then((path) => {
+              const sampleInfoMap = sounds.get(parentDirectory) ?? new Map();
+              const baseFrequency = extractBaseFrequencyFromString(title)
+              sampleInfoMap.set(title, { url: path, baseFrequency });
 
-              titlePathMap.set(title, soundPath);
-
-              sounds.set(parentDirectory, titlePathMap);
+              sounds.set(parentDirectory, sampleInfoMap);
               return;
             });
           }),
       )
         .then(() => {
-          sounds.forEach((titlePathMap, key) => {
-            const value = Array.from(titlePathMap.keys())
+          sounds.forEach((sampleInfoMap, key) => {
+            const bank = Array.from(sampleInfoMap.keys())
               .sort((a, b) => {
                 return a.localeCompare(b);
               })
-              .map((title) => titlePathMap.get(title));
-
-            registerSampleSource(key, value, { prebake: false });
+              .map((title) => sampleInfoMap.get(title));
+            registerSampleSource(key, bank, { prebake: false });
           });
 
           logger('imported sounds registered!', 'success');
