@@ -1,4 +1,4 @@
-import { getBaseURL, getCommonSampleInfo } from './util.mjs';
+import { BASE_MIDI_NOTE, getBaseURL, getCommonSampleInfo, noteToFreq, noteToMidi } from './util.mjs';
 import { registerSound, registerWaveTable } from './index.mjs';
 import { getAudioContext } from './audioContext.mjs';
 import {
@@ -13,6 +13,13 @@ import { logger } from './logger.mjs';
 
 const bufferCache = {}; // string: Promise<ArrayBuffer>
 const loadCache = {}; // string: Promise<ArrayBuffer>
+
+/**
+ *
+ * @typedef {Object} SampleMetaData
+ * @property {string} url
+ * @property {midi} number
+ */
 
 export const getCachedBuffer = (url) => bufferCache[url];
 
@@ -30,10 +37,11 @@ function humanFileSize(bytes, si) {
   return bytes.toFixed(1) + ' ' + units[u];
 }
 
-export function getSampleInfo(hapValue, bank) {
+function getSampleInfo(hapValue, bank) {
   const { speed = 1.0 } = hapValue;
-  const { transpose, url, index, midi, label } = getCommonSampleInfo(hapValue, bank);
-  let playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
+  const { transpose, url, index, midi, label, baseFrequency } = getCommonSampleInfo(hapValue, bank);
+
+  const playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
   return { transpose, url, index, midi, label, playbackRate };
 }
 
@@ -156,7 +164,12 @@ export const processSampleMap = (sampleMap, fn, baseUrl = sampleMap._base || '')
     if (baseUrl.startsWith('github:')) {
       baseUrl = githubPath(baseUrl, '');
     }
-    const fullUrl = (v) => baseUrl + v;
+    /**
+     *
+     * @param {string} v
+     * @returns {SampleMetaData}
+     */
+    const fullUrl = (v) => ({ url: baseUrl + v, midi: extractMidiNoteFromString(v) });
     if (Array.isArray(value)) {
       //return [key, value.map(replaceUrl)];
       value = value.map(fullUrl);
@@ -366,4 +379,17 @@ export function registerSampleSource(key, bank, params) {
   } else {
     registerSample(key, bank, params);
   }
+}
+
+export function extractMidiNoteFromString(str) {
+  const regex = /_([a-gA-G])([#b])?([1-9])?\b/;
+  const match = str.match(regex);
+  if (match == null) {
+    return BASE_MIDI_NOTE;
+  }
+  const base = match[1].toUpperCase();
+  const accidental = match[2] ?? '';
+  const octave_str = match[3] ?? '';
+  const parsedVal = base + accidental + octave_str;
+  return noteToMidi(parsedVal);
 }

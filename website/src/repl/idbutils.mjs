@@ -1,4 +1,4 @@
-import { registerSampleSource } from '@strudel/webaudio';
+import { extractMidiNoteFromString, registerSampleSource } from '@strudel/webaudio';
 import { isAudioFile } from './files.mjs';
 import { logger } from '@strudel/core';
 
@@ -47,7 +47,7 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
       Promise.all(
         [...soundFiles]
           .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
-          .map((soundFile, i) => {
+          .map((soundFile) => {
             const title = soundFile.title;
             if (!isAudioFile(title)) {
               return;
@@ -58,25 +58,26 @@ export function registerSamplesFromDB(config = userSamplesDBConfig, onComplete =
               splitRelativePath[splitRelativePath.length - 2] ?? soundFile.id.split(/\W+/)[0] ?? 'user';
             const blob = soundFile.blob;
 
-            return blobToDataUrl(blob).then((soundPath) => {
-              const titlePathMap = sounds.get(parentDirectory) ?? new Map();
+            return blobToDataUrl(blob).then((path) => {
+              const sampleInfoMap = sounds.get(parentDirectory) ?? new Map();
+              const midi = extractMidiNoteFromString(title);
+              /** @type {import('@strudel/webaudio').SampleMetaData} */
+              const samplemetadata = { url: path, midi };
+              sampleInfoMap.set(title, samplemetadata);
 
-              titlePathMap.set(title, soundPath);
-
-              sounds.set(parentDirectory, titlePathMap);
+              sounds.set(parentDirectory, sampleInfoMap);
               return;
             });
           }),
       )
         .then(() => {
-          sounds.forEach((titlePathMap, key) => {
-            const value = Array.from(titlePathMap.keys())
+          sounds.forEach((sampleInfoMap, key) => {
+            const bank = Array.from(sampleInfoMap.keys())
               .sort((a, b) => {
                 return a.localeCompare(b);
               })
-              .map((title) => titlePathMap.get(title));
-
-            registerSampleSource(key, value, { prebake: false });
+              .map((title) => sampleInfoMap.get(title));
+            registerSampleSource(key, bank, { prebake: false });
           });
 
           logger('imported sounds registered!', 'success');
