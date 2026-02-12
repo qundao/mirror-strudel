@@ -25,6 +25,12 @@ import { getSliderWidgets, sliderPlugin, updateSliderWidgets } from './slider.mj
 import { activateTheme, initTheme, theme } from './themes.mjs';
 import { isTooltipEnabled } from './tooltip.mjs';
 import { getActiveWidgets, updateWidgets, widgetPlugin } from './widget.mjs';
+import {
+  deleteAllInlineBeforeCharacter,
+  InsertCharBeforeChar,
+  jumpToCharacter,
+  jumpToNextCharacter,
+} from './labelJump.mjs';
 
 export { toggleBlockComment, toggleBlockCommentByLine, toggleComment, toggleLineComment } from '@codemirror/commands';
 
@@ -44,9 +50,9 @@ export const extensions = {
   isMultiCursorEnabled: (on) =>
     on
       ? [
-          EditorState.allowMultipleSelections.of(true),
-          EditorView.clickAddsSelectionRange.of((ev) => ev.metaKey || ev.ctrlKey),
-        ]
+        EditorState.allowMultipleSelections.of(true),
+        EditorView.clickAddsSelectionRange.of((ev) => ev.metaKey || ev.ctrlKey),
+      ]
       : [],
 };
 export const compartments = Object.fromEntries(Object.keys(extensions).map((key) => [key, new Compartment()]));
@@ -74,6 +80,10 @@ export const codemirrorSettings = persistentAtom('codemirror-settings', defaultS
   encode: JSON.stringify,
   decode: JSON.parse,
 });
+
+const ANON_LABEL = '$';
+const SOLO_LABEL = 'S';
+const MUTE_LABEL = '_';
 
 // https://codemirror.net/docs/guide/
 export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, root, mondo, strudelMirror }) {
@@ -138,12 +148,75 @@ export function initEditor({ initialCode = '', onChange, onEvaluate, onStop, roo
           },
           {
             key: 'Alt-w',
-            run: (view) => jumpToCharacter(view, '$', 1),
+            run: (view) => jumpToNextCharacter(view, ANON_LABEL, 1),
           },
           {
             key: 'Alt-q',
-            run: (view) => jumpToCharacter(view, '$', -1),
+            run: (view) => {
+              return jumpToNextCharacter(view, ANON_LABEL, -1);
+            },
           },
+          // clear all muted
+          {
+            key: `Alt-Ctrl-0`,
+            run: (view) => {
+              return deleteAllInlineBeforeCharacter(view, MUTE_LABEL + ANON_LABEL);
+            },
+          },
+          // clear all solod
+          {
+            key: `Alt-Shift-0`,
+            run: (view) => {
+              return deleteAllInlineBeforeCharacter(view, SOLO_LABEL + ANON_LABEL);
+            },
+          },
+          // clear all solo and mute
+          {
+            key: `Ctrl-Shift-0`,
+            run: (view) => {
+              return deleteAllInlineBeforeCharacter(view, ANON_LABEL);
+            },
+          },
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Alt-${num}`,
+              run: (view) => {
+                return jumpToCharacter(view, ANON_LABEL, i);
+              },
+            };
+          }),
+          // handle solo toggles 1-9
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Alt-Shift-${num}`,
+              run: (view) => {
+                return InsertCharBeforeChar(view, ANON_LABEL, SOLO_LABEL, i);
+              },
+            };
+          }),
+          // handle mute toggles 1-9
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Alt-Ctrl-${num}`,
+              run: (view) => {
+                return InsertCharBeforeChar(view, ANON_LABEL, MUTE_LABEL, i);
+              },
+            };
+          }),
+          // Handle clearing mutes and solos 1-9
+          ...Array.from({ length: 9 }).map((_, i) => {
+            let num = i + 1;
+            return {
+              key: `Ctrl-Shift-${num}`,
+              run: (view) => {
+                return InsertCharBeforeChar(view, ANON_LABEL, '', i);
+              },
+            };
+          }),
+
           /* {
             key: 'Ctrl-Shift-.',
             run: () => (onPanic ? onPanic() : onStop?.()),
