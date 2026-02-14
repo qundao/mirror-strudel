@@ -168,15 +168,15 @@ export const processSampleMap = (sampleMap, fn, baseUrl = sampleMap._base || '')
      * @param {string} v
      * @returns {SampleMetaData}
      */
-    const fullUrl = (v) => ({ url: baseUrl + v, midi: extractMidiNoteFromString(v) });
+    const getMetaData = (v) => ({ url: baseUrl + v, midi: extractMidiNoteFromString(v) });
     if (Array.isArray(value)) {
       //return [key, value.map(replaceUrl)];
-      value = value.map(fullUrl);
+      value = value.map(getMetaData);
     } else {
       // must be object
       value = Object.fromEntries(
         Object.entries(value).map(([note, samples]) => {
-          return [note, (typeof samples === 'string' ? [samples] : samples).map(fullUrl)];
+          return [note, (typeof samples === 'string' ? [samples] : samples).map(getMetaData)];
         }),
       );
     }
