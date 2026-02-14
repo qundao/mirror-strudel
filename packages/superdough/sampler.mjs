@@ -37,10 +37,9 @@ function humanFileSize(bytes, si) {
   return bytes.toFixed(1) + ' ' + units[u];
 }
 
-function getSampleInfo(hapValue, bank) {
+export function getSampleInfo(hapValue, bank) {
   const { speed = 1.0 } = hapValue;
-  const { transpose, url, index, midi, label, baseFrequency } = getCommonSampleInfo(hapValue, bank);
-
+  const { transpose, url, index, midi, label } = getCommonSampleInfo(hapValue, bank);
   const playbackRate = Math.abs(speed) * Math.pow(2, transpose / 12);
   return { transpose, url, index, midi, label, playbackRate };
 }
