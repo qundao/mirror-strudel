@@ -20,7 +20,6 @@ import { evalBlock } from './block_utilities.mjs';
 import { flash, isFlashEnabled } from './flash.mjs';
 import { highlightMiniLocations, isPatternHighlightingEnabled, updateMiniLocations } from './highlight.mjs';
 import { keybindings } from './keybindings.mjs';
-import { jumpToCharacter } from './labelJump.mjs';
 import { getSliderWidgets, sliderPlugin, updateSliderWidgets } from './slider.mjs';
 import { activateTheme, initTheme, theme } from './themes.mjs';
 import { isTooltipEnabled } from './tooltip.mjs';

@@ -74,7 +74,7 @@ export function jumpToNextCharacter(view, character, direction = 1) {
  * @param {EditorView} view 
  * @param {String} character 
  * @param {number} index the instance of the character  
- * @returns 
+ * @returns {true}
  */
 export function jumpToCharacter(view, character, index) {
   const { state, dispatch } = view;
@@ -126,7 +126,7 @@ export function deleteAllInlineBeforeCharacter(view, character) {
  * @param {String} character 
  * @param {String} character2 
  * @param {number} index 
- * @returns 
+ * @returns {true}
  */
 export function InsertCharBeforeChar(view, character, character2, index) {
   const { state, dispatch } = view;
