@@ -48,7 +48,7 @@ export function MainPanel({ context, isEmbedded = false, className }) {
   let ver = 'unofficial';
   let hot = false;
   let b = loc.hostname.match(/^(.+)\.(strudel)/);
-  if (/(strudel)/.test(loc.hostname)) {
+  if (/(strudel.cc$)/.test(loc.hostname)) {
     // if there's no text before 'strudel', it's warm, otherwise use the text before strudel
     ver = b ? b[1] : 'warm';
   } else {
