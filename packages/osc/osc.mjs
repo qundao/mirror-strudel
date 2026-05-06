@@ -42,7 +42,7 @@ export function parseControlsFromHap(hap, cps) {
     if (isNote(controls.note)) {
       controls.midinote = noteToMidi(controls.note, controls.octave || 3);
     } else {
-      controls.note = parseNumeral(controls.note);
+      controls.midinote = parseNumeral(controls.note);
     }
   }
   controls.bank && (controls.s = controls.bank + controls.s);
