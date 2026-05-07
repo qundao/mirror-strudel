@@ -1741,6 +1741,12 @@ export const func = curry((a, b) => reify(b).func(a));
  *
  */
 export function register(name, func, patternify = true, preserveSteps = false, join = (x) => x.innerJoin()) {
+  if (isPattern(name)) {
+    throw new Error(
+      'Name argument for register is a pattern, try using single quotes (\'name\') instead of double quotes ("name")',
+    );
+  }
+
   if (Array.isArray(name)) {
     const result = {};
     for (const name_item of name) {
