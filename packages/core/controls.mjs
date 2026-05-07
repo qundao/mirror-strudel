@@ -2582,13 +2582,17 @@ export const { compressorRelease } = registerControl('compressorRelease');
 export const { speed } = registerControl('speed');
 
 /**
- * Changes the speed of sample playback, i.e. a cheap way of changing pitch.
+ * Changes the pitch of the sample without changing its speed.
+ * The frequencies are multiplied by (factor + 1) for positive numbers
+ * and by max(factor / 4 + 1, 0) for negative numbers.
+ * So tuning up by octaves can be done with 1, 3, 7, ...
+ * and tuning down by octaves with -2, -3, -3.5...
  *
  * @name stretch
  * @tags pitch, samples
- * @param {number | Pattern} factor -inf to inf, negative numbers play the sample backwards.
+ * @param {number | Pattern} factor between `-4` and `inf`. Positive increases pitch, 0 does nothing, negative decreases the pitch.
  * @example
- * s("gm_flute").stretch("1 2 .5")
+ * s("gm_flute").stretch("<2 1 0 -2>")
  *
  */
 export const { stretch } = registerControl('stretch');

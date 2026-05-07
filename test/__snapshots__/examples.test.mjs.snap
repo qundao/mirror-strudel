@@ -12404,18 +12404,10 @@ exports[`runs examples > example "stepcat" example index 1 1`] = `
 
 exports[`runs examples > example "stretch" example index 0 1`] = `
 [
-  "[ (0/1 → 1/3) ⇝ 1/1 | s:gm_flute stretch:1 ]",
-  "[ 0/1 ⇜ (1/3 → 2/3) ⇝ 1/1 | s:gm_flute stretch:2 ]",
-  "[ 0/1 ⇜ (2/3 → 1/1) | s:gm_flute stretch:0.5 ]",
-  "[ (1/1 → 4/3) ⇝ 2/1 | s:gm_flute stretch:1 ]",
-  "[ 1/1 ⇜ (4/3 → 5/3) ⇝ 2/1 | s:gm_flute stretch:2 ]",
-  "[ 1/1 ⇜ (5/3 → 2/1) | s:gm_flute stretch:0.5 ]",
-  "[ (2/1 → 7/3) ⇝ 3/1 | s:gm_flute stretch:1 ]",
-  "[ 2/1 ⇜ (7/3 → 8/3) ⇝ 3/1 | s:gm_flute stretch:2 ]",
-  "[ 2/1 ⇜ (8/3 → 3/1) | s:gm_flute stretch:0.5 ]",
-  "[ (3/1 → 10/3) ⇝ 4/1 | s:gm_flute stretch:1 ]",
-  "[ 3/1 ⇜ (10/3 → 11/3) ⇝ 4/1 | s:gm_flute stretch:2 ]",
-  "[ 3/1 ⇜ (11/3 → 4/1) | s:gm_flute stretch:0.5 ]",
+  "[ 0/1 → 1/1 | s:gm_flute stretch:2 ]",
+  "[ 1/1 → 2/1 | s:gm_flute stretch:1 ]",
+  "[ 2/1 → 3/1 | s:gm_flute stretch:0 ]",
+  "[ 3/1 → 4/1 | s:gm_flute stretch:-2 ]",
 ]
 `;
 
