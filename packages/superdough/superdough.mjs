@@ -963,9 +963,9 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
       let url;
       let sample = getSound(ir);
       if (Array.isArray(sample)) {
-        url = sample.data.samples[i % sample.data.samples.length];
+        url = sample.data.samples[i % sample.data.samples.length].url;
       } else if (typeof sample === 'object') {
-        url = Object.values(sample.data.samples).flat()[i % Object.values(sample.data.samples).length];
+        url = Object.values(sample.data.samples).flat()[i % Object.values(sample.data.samples).length].url;
       }
       roomIR = await loadBuffer(url, ac, ir, 0);
     }
