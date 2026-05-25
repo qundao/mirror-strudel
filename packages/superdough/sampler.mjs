@@ -9,7 +9,7 @@ import {
   onceEnded,
   releaseAudioNode,
 } from './helpers.mjs';
-import { logger } from './logger.mjs';
+import { errorLogger, logger } from './logger.mjs';
 
 const bufferCache = {}; // string: Promise<ArrayBuffer>
 const loadCache = {}; // string: Promise<ArrayBuffer>
@@ -228,22 +228,31 @@ export async function fetchSampleMap(url) {
     }
     url = `https://shabda.ndre.gr/speech/${words}.json?gender=${gender}&language=${language}&strudel=1'`;
   }
-  if (typeof fetch !== 'function') {
-    // not a browser
-    return;
-  }
+
   const base = getBaseURL(url);
-  if (typeof fetch === 'undefined') {
-    // skip fetch when in node / testing
-    return;
+  if (typeof fetch !== 'function') {
+    errorLogger(new Error(`fetch is not supported in this environment. Skipping map load for: ${url}`), 'sampler.mjs')
+    return [{}, base || ''];
   }
-  const json = await fetch(url)
-    .then((res) => res.json())
-    .catch((error) => {
-      console.error(error);
-      throw new Error(`error loading "${url}"`);
-    });
-  return [json, json._base || base];
+
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
+    const json = await res.json();
+    return [json, json._base || base];
+
+  } catch (error) {
+    // Catching the failure here prevents it from bubbling up and crashing upstream
+    errorLogger(new Error(`Failed to fetch or parse sample map at "${url}":`), "sampler.mjs");
+
+    // Return a safe fallback structure so destructuring (e.g., [json, base]) won't break
+    return [{}, base || ''];
+  }
+
 }
 
 /**
