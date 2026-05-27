@@ -4127,3 +4127,30 @@ Pattern.prototype.worklet = function (src, ...inputs) {
 };
 
 export const worklet = (...args) => pure({}).worklet(...args);
+
+
+/**
+ * Creates a pattern of numbers in base x from a number or pattern of numbers.
+ *
+ * @name base
+ * @tags generators
+ * @param {number} n - input number to convert
+ * @param {number} x - base to convert to defaults to 10
+ * @example
+ * $: note(base("175 543", 10)).scale("c:major").s("saw")
+ * // $: note("1 7 5 5 4 3").scale("c:major").s("saw")
+ */
+export const base = (n, x = 10) => {
+  n = reify(n);
+  //console.log("base", n, x)
+  return n.withValue(v => {
+    let digits = [];
+    let value = v;
+    while (value > 0) {
+      digits.unshift(value % x);
+      value = Math.floor(value / x);
+    }
+    const length = digits.length;
+    return sequence(digits);
+  }).squeezeJoin()
+};
