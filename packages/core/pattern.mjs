@@ -2028,9 +2028,9 @@ export const { fastGap, fastgap } = register(['fastGap', 'fastgap'], function (f
     const newWhole = !hap.whole
       ? undefined
       : new TimeSpan(
-          newPart.begin.sub(begin.sub(hap.whole.begin).div(factor)),
-          newPart.end.add(hap.whole.end.sub(end).div(factor)),
-        );
+        newPart.begin.sub(begin.sub(hap.whole.begin).div(factor)),
+        newPart.end.add(hap.whole.end.sub(end).div(factor)),
+      );
     return new Hap(newWhole, newPart, hap.value, hap.context);
   };
   return pat.withQuerySpanMaybe(qf).withHap(ef).splitQueries();
@@ -4130,27 +4130,49 @@ export const worklet = (...args) => pure({}).worklet(...args);
 
 
 /**
- * Creates a pattern of numbers in base x from a number or pattern of numbers.
+ * Creates a pattern of numbers in base b from a number or pattern of numbers
+ * padded & limited to d digits long
  *
  * @name base
  * @tags generators
- * @param {number} n - input number to convert
- * @param {number} x - base to convert to defaults to 10
+ * @param {number} n - number to convert (can be a pattern)
+ * @param {number} b - base to convert to (defaults to 10) (can be a pattern)
+ * @param {number} d - max number of digits to produce for each n (defaults to 0 for all) (can be a pattern)
  * @example
- * $: note(base("175 543", 10)).scale("c:major").s("saw")
+ * $: note(base("7175 543", 10, 3)).scale("c:major").s("saw")
  * // $: note("1 7 5 5 4 3").scale("c:major").s("saw")
  */
-export const base = (n, x = 10) => {
+export const base = (n, b = 10, d=0) => {
   n = reify(n);
-  //console.log("base", n, x)
-  return n.withValue(v => {
-    let digits = [];
-    let value = v;
-    while (value > 0) {
-      digits.unshift(value % x);
-      value = Math.floor(value / x);
-    }
-    const length = digits.length;
-    return sequence(digits);
+  b = reify(b);
+  d = reify(d);
+
+  return d.withValue(e => {
+    return b.withValue(c => {
+      //console.log("base", n, c)
+      return n.withValue(v => {
+        let digits = [];
+        let value = v;
+        while (value > 0) {
+          digits.unshift(value % c);
+          value = Math.floor(value / c);
+        }
+        if (e){
+          const l = digits.length
+          if (l > e){
+            digits = digits.slice(-1 * e)
+          }
+          /* 
+          if (l < e){
+            for (let i = l; i < e; i++) {
+              digits.unshift("~");//0); //Would like to be padding this but ~- doesn't work
+            }
+            console.log("digits", digits)
+          }
+          */
+        }
+        return sequence(digits);
+      }).squeezeJoin()
+    }).squeezeJoin()
   }).squeezeJoin()
 };
