@@ -633,7 +633,7 @@ export async function midikeys(input) {
       */
       return;
     } else {
-      value = { ...value, note: Math.round(note), velocity: velocity / 127 };
+      value = { ...value, note: Math.round(note), velocity: velocity / 127, midichan: message.channel };
     }
     kHaps[input].push(new Hap(span, span, value, {}));
     if (!noteoff && triggerAvailable) {
