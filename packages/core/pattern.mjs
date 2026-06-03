@@ -4135,7 +4135,7 @@ export const worklet = (...args) => pure({}).worklet(...args);
  *
  * @name base
  * @tags generators
- * @param {number} n - number to convert (can be a pattern)
+ * @param {number} n - number to convert (can be a pattern or array)
  * @param {number} b - base to convert to (defaults to 10) (can be a pattern)
  * @param {number} d - max number of digits to produce for each n (defaults to 0 for all) (can be a pattern)
  * @example
@@ -4143,13 +4143,15 @@ export const worklet = (...args) => pure({}).worklet(...args);
  * // $: note("1 7 5 5 4 3").scale("c:major").s("saw")
  */
 export const base = (n, b = 10, d=0) => {
+  if(Array.isArray(n)){
+    n = sequence(n);
+  }
   n = reify(n);
   b = reify(b);
   d = reify(d);
 
   return d.withValue(e => {
     return b.withValue(c => {
-      //console.log("base", n, c)
       return n.withValue(v => {
         let digits = [];
         let value = v;
@@ -4158,21 +4160,21 @@ export const base = (n, b = 10, d=0) => {
           value = Math.floor(value / c);
         }
         if (e){
-          const l = digits.length
+          const l = digits.length;
           if (l > e){
-            digits = digits.slice(-1 * e)
+            digits = digits.slice(-1 * e);
           }
           /* 
           if (l < e){
             for (let i = l; i < e; i++) {
               digits.unshift("~");//0); //Would like to be padding this but ~- doesn't work
             }
-            console.log("digits", digits)
+            console.log("digits", digits);
           }
           */
         }
         return sequence(digits);
-      }).squeezeJoin()
-    }).squeezeJoin()
-  }).squeezeJoin()
+      }).squeezeJoin();
+    }).squeezeJoin();
+  }).squeezeJoin();
 };
