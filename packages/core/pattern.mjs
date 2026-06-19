@@ -3359,6 +3359,11 @@ Pattern.prototype.shrinklist = function (amount) {
 
 export const shrinklist = (amount, pat) => pat.shrinklist(amount);
 
+Pattern.prototype.growlist = function (amount) {
+  return this.shrinklist(amount).reverse();
+};
+export const growlist = (amount, pat) => pat.growlist(amount);
+
 /**
  * *Experimental*
  *

@@ -7927,6 +7927,8 @@ exports[`runs examples > example "midikeys" example index 0 1`] = `[]`;
 
 exports[`runs examples > example "midikeys" example index 1 1`] = `[]`;
 
+exports[`runs examples > example "midikeys" example index 2 1`] = `[]`;
+
 exports[`runs examples > example "midin" example index 0 1`] = `
 [
   "[ 0/1 → 1/4 | note:c cutoff:0 resonance:0 s:sawtooth ]",
