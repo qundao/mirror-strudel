@@ -68,6 +68,7 @@ export const SIDEBAR: Sidebar = {
       { text: 'Pattern Effects', link: 'workshop/pattern-effects' },
       { text: 'Recap', link: 'workshop/recap' },
       { text: 'Workshop in German', link: 'de/workshop/getting-started' },
+      { text: 'Tanglebot workshop', link: 'workshop/motors' },
     ],
     'Making Sound': [
       { text: 'Samples', link: 'learn/samples' },
