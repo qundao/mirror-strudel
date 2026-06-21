@@ -35,7 +35,7 @@ Let's get a motor running!
 
 3. Plug a motor into 'servo' (not motor) plug numbered 1, with the yellow (lightest) cable closest to the '1', and the brown (darkest) cable outward
 
-4. Run the below to set up some values, changing the `x` in 'robot('x')` to the letter on your microcontroller. 
+4. Run the below to set up some values, changing the `x` in 'robot('x')` to the letter on your microcontroller.
 
 <MiniRepl
   client:visible
@@ -109,11 +109,9 @@ Alternatively, you can pattern two motors in separate patterns. The below sends 
   client:visible
   tune={`
 
-$: move("-10 0 10 [20 30]*2").motor("0").slow(2).robot('x');
+$: move("-10 0 10 [20 30]\*2").motor("0").slow(2).robot('x');
 
-$: move("-10 0 10 [20 30]*2").motor("1").slow(3).robot('x');
+$: move("-10 0 10 [20 30]\*2").motor("1").slow(3).robot('x');
 
-  `}
+`}
 />
-
-

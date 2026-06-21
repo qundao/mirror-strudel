@@ -119,9 +119,10 @@ Pattern.prototype.mqtt = function (
   });
 };
 
-
 // This adds the 'move' and 'motor' commands to strudel
-export const { move, motor } = createParams('move', 'motor'); window.move = move; window.motor = motor;
+export const { move, motor } = createParams('move', 'motor');
+window.move = move;
+window.motor = motor;
 // This adds the 'robot' command
 Pattern.prototype.robot = function (robot_id, address = 'ws://192.168.8.248:9001/mqtt') {
   return this.mqtt(undefined, undefined, '/move/' + robot_id, address);
