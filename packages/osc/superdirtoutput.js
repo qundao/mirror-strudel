@@ -1,10 +1,7 @@
 /* import { oscTriggerTauri } from '../desktopbridge/oscbridge.mjs';
 import { isTauri } from '../desktopbridge/utils.mjs'; */
-import { oscTrigger } from './osc.mjs';
+import { oscScheduler } from './osc.mjs';
 
-const trigger = /* isTauri() ? oscTriggerTauri : */ oscTrigger;
+const scheduler = /* isTauri() ? oscTriggerTauri : */ oscScheduler;
 
-export const superdirtOutput = (hap, deadline, hapDuration, cps, targetTime) => {
-  const currentTime = performance.now() / 1000;
-  return trigger(hap, currentTime, cps, targetTime);
-};
+export const superdirtOutput = (hap, targetTime, cps) => scheduler(hap, targetTime, cps);

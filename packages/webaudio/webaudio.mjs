@@ -9,7 +9,7 @@ import {
   superdough,
   getAudioContext,
   setLogger,
-  rawdspTrigger,
+  rawdspScheduler,
   registerWorklet,
   setAudioContext,
   initAudio,
@@ -33,7 +33,8 @@ const hap2value = (hap) => {
 
 // uses more precise, absolute t if available, see https://github.com/tidalcycles/strudel/pull/1004
 // TODO: refactor output callbacks to eliminate deadline
-export const webaudioOutput = (hap, _deadline, hapDuration, cps, t) => {
+export const webaudioOutput = (hap, t, cps) => {
+  const hapDuration = hap.duration / cps;
   return superdough(hap2value(hap), t, hapDuration, cps, hap.whole?.begin.valueOf());
 };
 
@@ -174,7 +175,7 @@ export function webaudioRepl(options = {}) {
 }
 
 Pattern.prototype.rawdsp = function () {
-  return this.onTrigger(rawdspTrigger, 1);
+  return this.onSchedule(rawdspScheduler, 1);
 };
 
 function audioBufferToWav(buffer, opt) {
@@ -271,3 +272,23 @@ function writeString(view, offset, string) {
     view.setUint8(offset + i, string.charCodeAt(i));
   }
 }
+
+/**
+ *
+ * make something happen on event time
+ * uses browser timeout which is innacurate for audio tasks
+ * @name onTriggerTime
+ * @tags external_io
+ * @memberof Pattern
+ *  @returns Pattern
+ * @example
+ * s("bd!8").onTriggerTime((hap) => {console.log(hap)})
+ */
+Pattern.prototype.onTriggerTime = function (func) {
+  return this.onSchedule((hap, targetTime) => {
+    const diff = targetTime - getAudioContext().currentTime;
+    window.setTimeout(() => {
+      func(hap);
+    }, diff * 1000);
+  }, false);
+};

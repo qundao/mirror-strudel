@@ -7,7 +7,7 @@ This program is free software: you can redistribute it and/or modify it under th
 let time;
 let cpsFunc;
 let pattern;
-let triggerFunc;
+let schedulerFunc;
 let isStarted;
 export function getTime() {
   if (!time) {
@@ -36,12 +36,12 @@ export function getPattern() {
   return pattern;
 }
 
-export function setTriggerFunc(func) {
-  triggerFunc = func;
+export function setSchedulerFunc(func) {
+  schedulerFunc = func;
 }
 
-export function getTriggerFunc() {
-  return triggerFunc;
+export function getSchedulerFunc() {
+  return schedulerFunc;
 }
 
 export function setIsStarted(val) {

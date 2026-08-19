@@ -7,7 +7,7 @@ import {
   setIsStarted,
   setPattern as exposeSchedulerPattern,
   setTime,
-  setTriggerFunc,
+  setSchedulerFunc,
 } from './schedulerState.mjs';
 import { evalScope } from './evaluate.mjs';
 import { register, Pattern, isPattern, silence, stack } from './pattern.mjs';
@@ -55,7 +55,7 @@ export function repl({
   };
 
   const schedulerOptions = {
-    onTrigger: getTrigger({ defaultOutput, getTime }),
+    onSchedule: getScheduler({ defaultOutput }),
     getTime,
     onToggle: (started) => {
       updateState({ started });
@@ -73,7 +73,7 @@ export function repl({
   // NeoCyclist uses a shared worker to communicate between instances, which is not supported on mobile chrome
   const scheduler =
     sync && typeof SharedWorker != 'undefined' ? new NeoCyclist(schedulerOptions) : new Cyclist(schedulerOptions);
-  setTriggerFunc(schedulerOptions.onTrigger);
+  setSchedulerFunc(schedulerOptions.onSchedule);
   setCpsFunc(() => scheduler.cps);
   let pPatterns = {};
   let anonymousIndex = 0;
@@ -560,20 +560,17 @@ export function repl({
   return { scheduler, evaluate, evaluateBlock, start, stop, pause, setCps, setPattern, setCode, toggle, state };
 }
 
-export const getTrigger =
-  ({ getTime, defaultOutput }) =>
-  async (hap, deadline, duration, cps, t) => {
-    //   ^ this signature is different from hap.context.onTrigger, as set by Pattern.onTrigger(onTrigger)
-    // TODO: get rid of deadline after https://codeberg.org/uzu/strudel/pulls/1004
+export const getScheduler =
+  ({ defaultOutput }) =>
+  async (hap, t, cps) => {
     try {
-      if (!hap.context.onTrigger || !hap.context.dominantTrigger) {
-        await defaultOutput(hap, deadline, duration, cps, t);
+      if (!hap.context.onSchedule || !hap.context.dominantScheduler) {
+        await defaultOutput(hap, t, cps);
       }
-      if (hap.context.onTrigger) {
-        // call signature of output / onTrigger is different...
-        await hap.context.onTrigger(hap, getTime(), cps, t);
+      if (hap.context.onSchedule) {
+        await hap.context.onSchedule(hap, t, cps);
       }
     } catch (err) {
-      errorLogger(err, 'getTrigger');
+      errorLogger(err, 'getScheduler');
     }
   };

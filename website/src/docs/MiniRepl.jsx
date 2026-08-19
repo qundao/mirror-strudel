@@ -22,7 +22,7 @@ export function MiniRepl({
   tunes,
   hideHeader = false,
   canvasHeight = 100,
-  onTrigger,
+  onSchedule,
   punchcard,
   punchcardLabels = true,
   claviature,
@@ -58,8 +58,8 @@ export function MiniRepl({
       drawTime,
       drawContext,
       editPattern: (pat, id) => {
-        if (onTrigger) {
-          pat = pat.onTrigger(onTrigger, false);
+        if (onSchedule) {
+          pat = pat.onSchedule(onSchedule, false);
         }
         if (claviature) {
           pat = pat.onPaint((ctx, time, haps, drawTime) => {
