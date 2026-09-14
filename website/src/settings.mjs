@@ -23,6 +23,19 @@ export const PATTERN_SORT = {
   "NEWEST": "most recent",
   "A-Z": "A-Z",
 }
+const initialPrebakeScript = `// Prebake script
+//
+// This is code that is loaded before your pattern is run.
+// You can use it to define custom functions to use in any pattern.
+// 
+// This is an initial example script. You can edit it to add 
+// your own funtions.
+//
+// To use a script shared by some other user you can use
+// the import-button or paste the script in this editor.
+
+const ratchet = register('ratchet', (pat) => pat.sometimes(ply(2)))
+`;
 
 export const defaultSettings = {
   activeFooter: 'intro',
@@ -53,13 +66,14 @@ export const defaultSettings = {
   isPanelPinned: false,
   isPanelOpen: true,
   userPatterns: '{}',
-  prebakeScript: '',
+  prebakeScript: initialPrebakeScript,
   audioEngineTarget: audioEngineTargets.webaudio,
   isButtonRowHidden: false,
   isCSSAnimationDisabled: false,
   maxPolyphony: 128,
   multiChannelOrbits: false,
   includePrebakeScriptInShare: true,
+  settingsTab: 'settings',
 };
 
 let search = null;
@@ -122,6 +136,7 @@ export function useSettings() {
 export const setActiveFooter = (tab) => settingsMap.setKey('activeFooter', tab);
 export const setPanelPinned = (bool) => settingsMap.setKey('isPanelPinned', bool);
 export const setIsPanelOpened = (bool) => settingsMap.setKey('isPanelOpen', bool);
+export const setSettingsTab = (tab) => settingsMap.setKey('settingsTab', tab);
 
 export const storePrebakeScript = (script) => settingsMap.setKey('prebakeScript', script);
 

@@ -303,7 +303,7 @@ export class StrudelMirror {
       afterEval: (options) => {
         // remember for when highlighting is toggled on
         this.miniLocations = options.meta?.miniLocations || [];
-        this.widgets = options.meta?.widgets;
+        this.widgets = options.meta?.widgets || [];
 
         const sliders = this.widgets.filter((w) => w.type === 'slider');
         const widgets = this.widgets.filter((w) => w.type !== 'slider');
@@ -366,6 +366,9 @@ export class StrudelMirror {
     // Handle global evaluation requests (e.g., from Vim :w)
     this.onEvaluateRequest = (e) => {
       try {
+        if (e.detail.view !== this.editor) {
+          return; // ignore events from other editors
+        }
         // Evaluate current editor on repl-evaluate
         logger('[repl] evaluate via event');
         this.evaluate();
@@ -380,6 +383,9 @@ export class StrudelMirror {
     // Toggle comments requested from Vim (gc)
     this.onToggleComment = (e) => {
       try {
+        if (e.detail.view !== this.editor) {
+          return; // ignore events from other editors
+        }
         // Honor selections; toggleLineComment handles both selections and
         // single line
         toggleLineComment(this.editor);
@@ -420,6 +426,9 @@ export class StrudelMirror {
   // Listen for global stop requests (e.g., from Vim :q)
   onStopRequest = (e) => {
     try {
+      if (e.detail.view !== this.editor) {
+        return; // ignore events from other editors
+      }
       this.stop();
       e?.cancelable && e.preventDefault?.();
     } catch (err) {
@@ -508,13 +517,15 @@ export class StrudelMirror {
       this.setFontSize(value);
     }
   }
-  setCode(code) {
-    const changes = {
-      from: 0,
-      to: this.editor.state.doc.length,
-      insert: code,
-    };
+  replaceCode(code, from, to) {
+    const changes = { from, to, insert: code };
     this.editor.dispatch({ changes });
+  }
+  insertCode(code, position) {
+    this.replaceCode(code, position, position);
+  }
+  setCode(code) {
+    this.replaceCode(code, 0, this.editor.state.doc.length);
   }
   // used for debugging but could serve other purposes
   getActiveWidgets() {

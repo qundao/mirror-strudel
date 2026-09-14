@@ -70,6 +70,7 @@ export function loadModules() {
   let modules = [
     import('@strudel/core'),
     import('@strudel/draw'),
+    import('@strudel/edo'),
     import('@strudel/tonal'),
     import('@strudel/mini'),
     import('@strudel/xen'),
@@ -84,6 +85,7 @@ export function loadModules() {
     import('@strudel/motion'),
     import('@strudel/mqtt'),
     import('@strudel/mondo'),
+    import('@strudel/dough'),
   ];
   if (isTauri()) {
     modules = modules.concat([
@@ -108,6 +110,7 @@ export function confirmDialog(msg) {
   });
 }
 export const SETTING_CHANGE_RELOAD_MSG = 'Changing this setting requires the window to reload itself. OK?';
+
 export function confirmAndReloadPage(onSuccess) {
   confirmDialog(SETTING_CHANGE_RELOAD_MSG).then((r) => {
     if (r == true) {
