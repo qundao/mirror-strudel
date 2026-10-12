@@ -16,7 +16,6 @@ import {
   gainNode,
   getCompressor,
   getDistortion,
-  getFrequencyFromValue,
   getLfo,
   getWorklet,
   releaseAudioNode,
@@ -61,6 +60,11 @@ export const soundMap = map();
 export function registerSound(key, onTrigger, data = {}) {
   key = key.toLowerCase().replace(/\s+/g, '_');
   soundMap.setKey(key, { onTrigger, data });
+}
+
+const chainEffects = {};
+export function registerChainEffect(name, effect) {
+  chainEffects[name] = effect;
 }
 
 let gainCurveFunc = (val) => val;
@@ -260,14 +264,6 @@ export function loadWorklets() {
   return workletsLoading;
 }
 
-let kabel;
-async function initKabelsalat() {
-  const { SalatRepl } = await import('@kabelsalat/web');
-  logger('[kabelsalat] ready');
-  kabel = new SalatRepl({ localScope: true });
-  return kabel;
-}
-
 // this function should be called on first user interaction (to avoid console warning)
 export async function initAudio(options = {}) {
   const {
@@ -314,7 +310,6 @@ export async function initAudio(options = {}) {
   } catch (err) {
     console.warn('could not load AudioWorklet effects', err);
   }
-  await initKabelsalat();
   logger('[superdough] ready');
 }
 let audioReady;
@@ -449,14 +444,6 @@ class Chain {
     this.tails = [];
   }
 }
-
-const compileKabel = (code) => {
-  if (!kabel) {
-    throw new Error('kabelsalat not loaded');
-  }
-  const node = kabel.evaluate(code);
-  return node.compile({ log: false });
-};
 
 export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) => {
   // mapping from main FX and numbered FX chains to nodes
@@ -633,17 +620,21 @@ export const superdough = async (value, t, hapDuration, cps = 0.5, cycle = 0.5) 
     gain *= velocity; // velocity currently only multiplies with gain. it might do other things in the future
     delaytime = delaytime ?? cycleToSeconds(delaysync, cps);
 
-    // Kabelsalat
-    if (fx.workletSrc !== undefined) {
-      const workletNode = getWorklet(ac, 'generic-processor', {}, { outputChannelCount: [2] });
-      chain.connect(workletNode);
-      const workletSrc = fx.workletSrc
-        .replace(/\bpat\[(\d+)\]/g, (_, i) => fx.workletInputs[i])
-        .replaceAll('sFreq', getFrequencyFromValue(value))
-        .replaceAll('sGate', `cc('strudel-gate-${chainID}')`);
-      /* global compileKabel */
-      const { src, ugens, registers } = compileKabel(workletSrc);
-      workletNode.port.postMessage({ src, schema: { ugens, registers }, start: t, gateEnd: end, end: endWithRelease });
+    // custom chain effect sink (used for kabelsalat)
+    for (let key in chainEffects) {
+      const effect = chainEffects[key];
+      if (fx[key] !== undefined) {
+        const node = effect({
+          audioContext: ac,
+          fx,
+          chainID,
+          value,
+          start: t,
+          gateEnd: end,
+          releaseEnd: endWithRelease,
+        });
+        node && chain.connect(node);
+      }
     }
 
     if (fx.stretch !== undefined) {

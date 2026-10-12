@@ -401,6 +401,25 @@ importers:
         specifier: ^6.0.11
         version: 6.0.11(@types/node@22.10.10)(jiti@2.4.2)(lightningcss@1.29.1)(terser@5.37.0)(yaml@2.7.0)
 
+  packages/kabelsalat:
+    dependencies:
+      '@kabelsalat/lib':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@kabelsalat/web':
+        specifier: ^0.4.1
+        version: 0.4.1
+      superdough:
+        specifier: workspace:*
+        version: link:../superdough
+    devDependencies:
+      vite:
+        specifier: ^6.0.11
+        version: 6.0.11(@types/node@22.10.10)(jiti@2.4.2)(lightningcss@1.29.1)(terser@5.37.0)(yaml@2.7.0)
+      vite-plugin-bundle-audioworklet:
+        specifier: workspace:*
+        version: link:../vite-plugin-bundle-audioworklet
+
   packages/midi:
     dependencies:
       '@strudel/core':
@@ -601,12 +620,6 @@ importers:
 
   packages/superdough:
     dependencies:
-      '@kabelsalat/lib':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@kabelsalat/web':
-        specifier: ^0.4.1
-        version: 0.4.1
       nanostores:
         specifier: ^0.11.3
         version: 0.11.3
@@ -848,6 +861,9 @@ importers:
       '@strudel/hydra':
         specifier: workspace:*
         version: link:../packages/hydra
+      '@strudel/kabelsalat':
+        specifier: workspace:*
+        version: link:../packages/kabelsalat
       '@strudel/midi':
         specifier: workspace:*
         version: link:../packages/midi
