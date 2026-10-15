@@ -118,7 +118,7 @@ export const { s, sound } = registerControl(['s', 'n', 'gain'], 'sound');
  * @param {number | Pattern} position Position in the wavetable from 0 to 1
  * @synonyms wavetablePosition
  * @example
- * s("squelch").bank("wt_digital").seg(8).note("F1").wt("0 0.25 0.5 0.75 1")
+ * s("wt_digital").seg(8).note("F1").wt("0 0.25 0.5 0.75 1")
  */
 export const { wt, wavetablePosition } = registerControl('wt', 'wavetablePosition');
 
@@ -519,10 +519,10 @@ export const { fmh, fmh1, fmh2, fmh3, fmh4, fmh5, fmh6, fmh7, fmh8 } = registerM
  * each other with matrix commands like `fm13`, which would send `fm1` back into
  * `fm3`
  *
- * @name fmi
+ * @name fm
  * @tags fm, superdough, supradough
  * @param {number | Pattern} brightness modulation index
- * @synonyms fm
+ * @synonyms fmi
  * @example
  * note("c e g b g e")
  * .fm("<0 1 2 8 32>")
@@ -1988,11 +1988,10 @@ export const { spread } = registerControl('spread');
  * Set dryness of reverb. See `room` and `size` for more information about reverb.
  *
  * @name dry
- * @tags superdirt
+ * @tags superdirt, superdough
  * @param {number | Pattern} dry 0 = wet, 1 = dry
  * @example
  * n("[0,3,7](3,8)").s("superpiano").room(.7).dry("<0 .5 .75 1>").osc()
- * @superdirtOnly
  *
  */
 export const { dry } = registerControl('dry');
@@ -2226,7 +2225,7 @@ export const { orbit } = registerControl('orbit', 'o');
  *   otherPat.bmod(..) (to modulate another pattern with the bus)
  *
  * @name bus
- * @tags superdirt
+ * @tags superdough
  * @param {number | Pattern} number
  */
 export const { bus } = registerControl('bus');
@@ -2235,7 +2234,7 @@ export const { bus } = registerControl('bus');
  * Postgain multiplier prior to sending the signal to the audio bus.
  *
  * @name busgain
- * @tags superdirt
+ * @tags superdough
  * @synonyms bgain
  * @param {number | Pattern} number
  */
@@ -2377,7 +2376,7 @@ export const { mode } = registerControl(['mode', 'anchor']);
  *
  * @name room
  * @tags orbit, superdough
- * @param {number | Pattern} level between 0 and 1
+ * @param {number | Pattern} level
  * @example
  * s("bd sd [~ bd] sd").room("<0 .2 .4 .6 .8 1>")
  * @example

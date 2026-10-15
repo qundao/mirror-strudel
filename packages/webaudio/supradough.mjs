@@ -20,7 +20,7 @@ const soundMap = new Map();
 const loadedSounds = new Map();
 
 Pattern.prototype.supradough = function () {
-  return this.onTrigger((hap, __, cps, begin) => {
+  return this.onSchedule((hap, begin, cps) => {
     hap.value._begin = begin;
     hap.value._duration = hap.duration / cps;
     !doughWorklet && initDoughWorklet();
@@ -61,7 +61,7 @@ function githubPath(base, subpath = '') {
   }
   return `https://raw.githubusercontent.com/${path}/${subpath}`;
 }
-export async function fetchSampleMap(url) {
+export async function _fetchSampleMap(url) {
   if (url.startsWith('github:')) {
     url = githubPath(url, 'strudel.json');
   }
@@ -116,7 +116,7 @@ async function fetchSample(url) {
 
 export async function supradoughsamples(sampleMap, baseUrl) {
   if (typeof sampleMap === 'string') {
-    const [json, base] = await fetchSampleMap(sampleMap);
+    const [json, base] = await _fetchSampleMap(sampleMap);
     // console.log('json', json, 'base', base);
     return supradoughsamples(json, base);
   }
