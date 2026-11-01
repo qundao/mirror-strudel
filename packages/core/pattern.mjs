@@ -2477,18 +2477,6 @@ export const apply = register('apply', function (func, pat) {
 });
 
 /**
- * Plays the pattern at the given cycles per minute.
- * @tags temporal
- * @deprecated
- * @example
- * s("<bd sd>,hh*2").cpm(90) // = 90 bpm
- */
-// this is redefined in repl.mjs, using the current cps as divisor
-export const cpm = register('cpm', function (cpm, pat) {
-  return pat._fast(cpm / 60 / 1);
-});
-
-/**
  * Nudge a pattern to start earlier in time. Equivalent of Tidal's <~ operator
  *
  * @tags temporal

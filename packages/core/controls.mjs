@@ -2702,7 +2702,32 @@ export const { seconds } = registerControl('seconds');
 export const { songPtr } = registerControl('songPtr');
 export const { uid } = registerControl('uid');
 export const { val } = registerControl('val');
+
+/**
+ * Plays the pattern at the given cycles per second. The cps can be patterned. This changes the global tempo, so it generally
+ * makes sense to have either `cps` (or `cpm` - cycles per minute) set by only one of your patterns.
+ * Note that this currently does not work when the 'Sync across Browser Tabs / Windows' setting is switched on.
+ * @tags temporal
+ * @example
+ * s("bd hh sd hh").cps(0.5) // = 1 cycle every 2 seconds
+ * @example
+ * // a smooth change over 4 cycles
+ * s("bd hh sd hh").cps(sine.slow(4).range(0.5,1.5))
+ */
 export const { cps } = registerControl('cps');
+
+/**
+ * Plays the pattern at the given cycles per minute. The cpm can be patterned. This changes the global tempo, so it generally
+ * makes sense to have either `cpm` (or `cps` - cycles per second) set by only one of your patterns.
+ * Note that this currently does not work when the 'Sync across Browser Tabs / Windows' setting is switched on.
+ * @tags temporal
+ * @example
+ * s("bd hh sd hh").cpm(90) // = feels like 180 bpm
+ * // a smooth change over 4 cycles
+ * s("bd hh sd hh").cpm(sine.slow(4).range(30,70))
+ */
+export const { cpm } = registerControl('cpm');
+
 /**
  * Multiplies the duration with the given number. Also cuts samples off at the end if they exceed the duration.
  *

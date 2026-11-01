@@ -84,10 +84,10 @@ export class Cyclist {
                 // cps changes first, so the durations of the simultaneous haps
                 // are adjusted accordingly.
                 if (aBegin.eq(bBegin)) {
-                  if (a.value.cps !== undefined) {
-                    return b.value.cps !== undefined ? 0 : -1;
+                  if (a.value.cps !== undefined || a.value.cpm !== undefined) {
+                    return b.value.cps !== undefined || b.value.cpm !== undefined ? 0 : -1;
                   }
-                  if (b.value.cps !== undefined) {
+                  if (b.value.cps !== undefined || b.value.cpm !== undefined) {
                     return 1;
                   }
                   return 0;
@@ -97,6 +97,8 @@ export class Cyclist {
 
             haps.forEach((hap) => {
               const targetTime = (hap.whole.begin - this.checkpoint.cycles) / this.cps + this.checkpoint.seconds;
+              let hapCps = hap.value.cps;
+              hapCps ??= hap.value.cpm != null ? hap.value.cpm / 60 : undefined;
               if (tickEndTime < targetTime) {
                 // If the targetTime exceeds the tickEndTime, this means
                 // the cps has slowed down, and the latter haps from the query
@@ -104,10 +106,10 @@ export class Cyclist {
                 // They'll be scheduled during the next tick.
                 return;
               }
-              onSchedule?.(hap, targetTime + this.latency, hap.value.cps ?? this.cps);
-              if (hap.value.cps !== undefined && this.cps != hap.value.cps) {
+              onSchedule?.(hap, targetTime + this.latency, hapCps ?? this.cps);
+              if (hapCps !== undefined && this.cps != hapCps) {
                 cpsChanged = true;
-                this.cps = hap.value.cps;
+                this.cps = hapCps;
                 this.num_ticks_since_checkpoint = 0;
                 this.checkpoint = {
                   cycles: hap.whole.begin,
